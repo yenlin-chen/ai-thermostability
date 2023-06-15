@@ -1,0 +1,251 @@
+
+************************************************
+*********** Get arguments/parameters ***********
+************************************************
+
+Reading parameters in /mnt/d/Dropbox/projects/ai-thermostability/code/data/collation/TNM/run/A0A023PXQ4-AFv4/tnm.in
+Elastic constant for phi angle:    0.500
+Elastic constant for psi angle:    0.500
+WARNING, elastic constant for omega set but omega is frozen
+Elastic constant for chi angle:    0.500
+Elastic constant for bond lengths: 1.00
+Elastic constant for bond angles: 0.50
+COLL_THR= 10.0
+WARNING, unrecognized line:
+RMSD_STEP=0.2          ! Minimum Rmsd between structures in a movie
+Contact type set to MIN
+Exponent of force constant = 6.000
+Degrees of freedom: Torsional (TNM, default)
+Reference atoms: ALL Contact type: MIN
+
+************************************************
+*********** Read protein structure 1 ***********
+************************************************
+
+Reading /mnt/d/Dropbox/projects/ai-thermostability/code/data/external/AlphaFoldDB/pdb/A0A023PXQ4-AFv4.pdb Counting residues in 1 chains A
+Counting 394 residues in 1 chains: A
+Reading /mnt/d/Dropbox/projects/ai-thermostability/code/data/external/AlphaFoldDB/pdb/A0A023PXQ4-AFv4.pdb 1 chains to read
+Reading 394 residues in 1 chains: A
+PDB A0A023PXQ4-AFv4 chain A nres=394 natoms=3022
+Storing 3022 atoms in 1 chains
+Storing 1 chains: A
+1 chains found: A.
+Reading /mnt/d/Dropbox/projects/ai-thermostability/code/data/external/AlphaFoldDB/pdb/A0A023PXQ4-AFv4.pdb Reading chain 0 A 394 residues
+394 residues read 394 expected for chain 1
+
+************************************************
+*********** Ref atoms Kinetic Energy ***********
+************************************************
+
+3022 atoms out of 3022 selected for kinetic energy (ALL)
+3022 reference atoms
+
+************************************************
+*********** Center coordinates *****************
+************************************************
+
+Determinant= -1.000
+Determinant= 1.000
+
+************************************************
+*********** Prepare output files ***************
+************************************************
+
+output file (nameout1): A0A023PXQ4-AFv4A_MIN4.5_ALL_PHIPSIPSI
+output file (summary1): A0A023PXQ4-AFv4A_MIN4.5_ALL_PHIPSIPSI.summary.dat
+
+************************************************
+*********** Topology? ***************
+************************************************
+
+3022 atoms, 3022 bonds for building the molecule
+Testing build up
+RMSD with no torsion change: 5.2e-08
+
+************************************************
+*********** ENM contacts/interactions **********
+************************************************
+
+1177 interactions of type MIN found
+Computing force constant
+Interpolating to zero between 4.500 and 4.500
+Power law k= 200 (r/3.5)^-6.0
+Printing contact matrix
+Writing contact matrix in A0A023PXQ4-AFv4A_MIN4.5_ALL_PHIPSIPSI_Cont_Mat.txt
+1177 interactions
+Contact matrix computation.Time= 0.02 sec.
+
+************************************************
+*********** ENM degrees of freedom *************
+************************************************
+
+0 gaps found in protein
+Expected number of dofs: 1182
+
+Setting degrees of freedom for 1 chains
+Chain 1 type 1 atoms= 0-3021
+
+0 rigid degrees of freedom found (expected 0 for 1 chains)
+786 mainchain degrees of freedom
+Main axes skipped since < 1 interactions:
+f1 f3 f141 f149 f153 f161 f163 f165 f169 f179 f181 f185 f195 f199 f201 f205 f211 f215 f221 f253 f255 f263 f269 f271 f273 f339 f347 f381 f385 f389 f391 f401 f405 f409 f411 f447 f453 f457 f461 f465 f473 f479 f481 f483 f517 f523 f527 f531 f535 f567 f571 f575 f585 f587 f599 f611 f615 f619 f621 f629 f635 f637 f645 f647 f649 f651 f659 f667 f669 f733 f771 f773 f775 f777 f779 f781 f783 f785 
+Skipped 78 axes over 786 (main)
+708 Axes: 708 main, 0 side
+chain 0 (A): 394 res 708 axes 0-707
+Chain A-pppfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfppfpfpfppfppfpfpfppppfppfpfpfpfpppfppfpfpfpfppfpppfppfpfppfppfpfppfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpppfpfpfppfpfppppfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfppfpfpfppfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfppfppfpppfpfpfpfppfppfpppfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfppfpfppfppfppfppfpfpfppfpfppppfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfppfpfppfppfppfppfpfpfpfpfpfpfpfpfpfpfpfpfpfpfppfppfppfpfpfpfpppfpfpfpfpfppfpfpfpfpfppfppfpppfpfpfppfpfpppfpfpfpppppfpfpfppfpfpfpppfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfppfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpfpppppppp
+Number of degrees of freedom: 708
+
+************************************************
+*********** ENM memory allocation **************
+************************************************
+
+Hessian allocated
+Jacobian allocated
+Normal modes allocated
+Memory allocated
+
+************************************************
+*********** ENM kinetic en, Eckart cdt *********
+************************************************
+
+Center of mass:   -0.0000000  -0.0000000  0.0000000   M=40468
+Testing Eckart conditions for each axis (708)
+Kinetic_sqrt with Cholevsky decomposition
+Kinetic energy computation. Time= 0.11 sec.
+
+************************************************
+*********** ENM Hessian / normal modes  ********
+************************************************
+
+Torsional network model
+Computing Hessian with Cholevsky decomposition
+chain 0 (A): 1177 contacts
+Computing torsional potential
+Hessian computation. Time= 1.16 sec.
+Hessian diagonalization. Time= 0.67 sec.
+Torsional and Cartesian modes. Time= 1.31 sec.
+Normal modes computation. Time= 1.98 sec.
+Normal mode computation finished
+
+************************************************
+*********** ENM normal mode coll. **************
+************************************************
+
+Average omega^2 prior to norm: 68
+(discard) AV_OME2          68.32   | average EV (or omega^2) before kappa fit
+(discard) LOGAV_OME2       9.266   | exp(average log(omega^2))
+(discard) MIN_OME2     5.026e-06   | min omega^2
+(discard) MAX_OME2         688.5   | max omega^2
+(discard) NORM_SIG2    5.017e+05   | sum(1/omega^2) --> CONTR_TH = (1/omega^2)/NORM_SIG2
+(discard) THR_OME2     6.832e-07   | = EMIN * AV_OME2
+(discard) THR_COLL            30   |= COLL * 3 (cart coord per atom), max= 0.15*3*natoms
+(discard) N_Cart            9066   | = natoms * 3 --> collect = xxx/N_Cart
+Selecting modes of full interaction matrix
+WARNING, discarding mode 376  omega^2= 24.5 Coll= 26 RMSD= 0.32
+WARNING, discarding mode 456  omega^2= 46.3 Coll= 15 RMSD= 0.39
+WARNING, discarding mode 675  omega^2= 317 Coll= 27 RMSD= 0.09
+705 modes selected
+3 modes discarded for low collectivity and 0 for low frequency
+Smallest positive eigenvalue: 5e-06 a=0 Threshold for selection: 1e-08*<omega^2>
+Normal mode selection. Time= 0.03 sec.
+
+**************************************************
+**** Rescale force constant with B-factors ********
+***************************************************
+
+394 CA atoms selected in 394 residues
+RMSD of fluctuations (B fact tot)= 1.359
+r(B_pred,B_exp)= 0.364 offset= 1.691 force const factor=1054 (2 var fit)
+0 outliers eliminated for B factors fit
+Fitting B factors with internal and rigid body motions
+Ridge regression fit of type C, Lambda= 0.09
+r(Y_pred, Y_obs)= 0.783 slope=0.6743 off= 0.587 (11 var ridge regr 394 samples)
+B-factor fit with rotations, force const factor= 0.000632
+Force constant: 1 x 200 = 200    -> K0 = 3.677e+05    (Default value)
+RMSD of normal modes= 12.885 (pred)
+Writing A0A023PXQ4-AFv4A_MIN4.5_ALL_PHIPSIPSI.MSF.dat
+FIT_B= 0 kappa= 1
+Rescaling force constant by factor 1
+Rescaling omega2 by factor 1
+Fitting B factors. Time= 0.00 sec.
+(discard) KAPPA            1    | ratio between OME2 above and in .Modes file
+
+************************************************
+*************** Anharmonicity ******************
+************************************************
+
+Assigning knowledge-based interactions
+--> NPAR =        2        number of parameters: 2 (only repulsion), 3 (barrier)
+--> Na   =       20        amino acids or atom types
+--> POW  =        1        1 power law, 0 exponential (kappa)
+--> EXPO =     6.00        kappa exponent
+--> k0   =   200.00        kappa0 (default value or Bfactor fit)
+--> OUTPUT: Int_KB[20][20]
+
+Assigning structure-based interactions
+--> NPAR  =        2        number of parameters: 2 (Morse) 3 (barrier)
+--> N_int =     1177        number of native interactions
+--> Int_list[]         list of all native interactions
+--> Int_KB[][]         knowledge-based interactions
+--> aa_seq[]           a.a. type ID of each residue in the seq
+--> OUTPUT: Int_list gets filled up with energy parameters
+1177 SB interactions assigned
+************************************************
+*********** Torsional fluctuations *************
+************************************************
+
+Writing A0A023PXQ4-AFv4A_MIN4.5_ALL_PHIPSIPSI.summary.dat
+Writing A0A023PXQ4-AFv4A_MIN4.5_ALL_PHIPSIPSI.Modes.dat
+************************************************
+************ Conformational Change *************
+************************************************
+
+Writing A0A023PXQ4-AFv4A_MIN4.5_ALL_PHIPSIPSI.MSF_tors.dat
+Predicting dynamical couplings, anharmonicity=0
+Max number contact per residue: 10
+Computing Deformation coupling
+Writing A0A023PXQ4-AFv4A_MIN4.5_ALL_PHIPSIPSI.names.dat
+Writing A0A023PXQ4-AFv4A_MIN4.5_ALL_PHIPSIPSI.coordination_coupling.dat
+Computing profiles of Coord type C
+<EC_i>^2/<EC_i^2>= 0.945
+  0 2.23 0.52 -2.3
+  1 2.45 0.2 -0.79
+  2 2.71 0.078 -0.29
+  3 2.98 0.025 -0.13
+  4 3.16 0.0048 -0.085
+  5 3.22 0.00028 -0.075
+  6 3.22 1.1e-06 -0.075
+EC of Coord computed, lambda1= 2.12 Lambda= 3.22
+Writing A0A023PXQ4-AFv4A_MIN4.5_ALL_PHIPSIPSI.deformation_coupling.dat
+Computing profiles of Deformation type C
+<EC_i>^2/<EC_i^2>= 0.627
+  0 8.61e+03 -0.014 -8.9e-05
+  1 8.46e+03 0.00032 -9.3e-05
+  2 8.46e+03 2e-07 -9.3e-05
+EC of Deformation computed, lambda1= 8.2e+03 Lambda= 8.46e+03
+Writing A0A023PXQ4-AFv4A_MIN4.5_ALL_PHIPSIPSI.directionality_coupling.dat
+Computing profiles of Directionality type C
+<EC_i>^2/<EC_i^2>= 0.954
+  0 497 0.025 -0.00037
+  1 563 0.0052 -0.00023
+  2 586 0.00036 -0.0002
+  3 588 2.1e-06 -0.0002
+EC of Directionality computed, lambda1= 473 Lambda= 588
+Writing A0A023PXQ4-AFv4A_MIN4.5_ALL_PHIPSIPSI.proximity_coupling.dat
+Computing profiles of proximity type C
+<EC_i>^2/<EC_i^2>= 0.993
+  0 1.8 0.25 -2.2
+  1 1.92 0.11 -0.65
+  2 2.09 0.048 -0.2
+  3 2.33 0.02 -0.068
+  4 2.62 0.0074 -0.026
+  5 2.9 0.0021 -0.013
+  6 3.06 0.00031 -0.0096
+  7 3.09 9.8e-06 -0.009
+EC of proximity computed, lambda1= 1.72 Lambda= 3.09
+Reading binding sites
+Reading sites in file /mnt/d/Dropbox/projects/ai-thermostability/code/data/external/AlphaFoldDB/pdb/A0A023PXQ4-AFv4.pdb, chain A 394 residues
+Reading /mnt/d/Dropbox/projects/ai-thermostability/code/data/external/AlphaFoldDB/pdb/A0A023PXQ4-AFv4.pdb 0 residues read in 0 binding sites out of 0
+0 binding sites read
+Writing A0A023PXQ4-AFv4A_MIN4.5_ALL_PHIPSIPSI.profiles.dat
+Dynamical coupling. Time= 1.19 sec.
