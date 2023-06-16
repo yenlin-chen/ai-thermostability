@@ -1,4 +1,4 @@
-import os, sys, wandb
+import os, sys, wandb, time
 import os.path as osp
 self_dir = osp.normpath(os.getcwd())
 root_dir = osp.dirname(osp.dirname(osp.dirname(self_dir)))
@@ -36,16 +36,6 @@ if __name__== '__main__':
         'r2': r2
     }
 
-    # trim_dims = {
-    #     'pae': trim_pae,
-    #     'backbone': trim_backbone,
-    #     'contact': trim_contact,
-    #     'coord': trim_coord,
-    #     'codir': trim_codir,
-    #     'deform': trim_deform,
-    #     'res1hot': trim_res1hot
-    # }
-
     # machine-specific parameters
     num_workers = 2
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -56,10 +46,12 @@ if __name__== '__main__':
     # experiment setup
     ####################################################################
     # hyperparameters
-    n_epochs = 600
+    n_epochs = 300
     batch_size = 256
     learning_rate = 0.001
     split_ratio = [8,2]
+
+    loss_type = 'mse'
 
     # file to save training history
     history_file = 'training_history.csv'
@@ -71,7 +63,6 @@ if __name__== '__main__':
         experiment='lysate',
         organism=None,
         cell_line=None,
-        # version='v1-prot_bert_bfd',
         version='v2-pae',
         transform=norm_0to1
     )
@@ -82,15 +73,25 @@ if __name__== '__main__':
         dim_node_feat=1024,
         dim_node_hidden_ls=[64, 64, 64],
         dim_hidden_ls=[64],
-        dropout_rate=0.5,
-        feat2fc=False,
-        conv_norm=True,
-        fc_norm=True,
+        # dropout_rate=0.5,
+        # dropedge_rate=0.2,
+        dropfeat_rate=0.5,
+        # dropnode_rate=0.3,
+        # feat2fc=False,
+        # conv_norm=True,
+        # fc_norm=True,
+        # global_pool='sum',
+        # debug=True
     )
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
-    loss_fn = torch.nn.MSELoss(reduction='sum')
-
-    # raise Exception
+    if loss_type == 'mae':
+        loss_fn = torch.nn.L1Loss(reduction='sum')
+    elif loss_type == 'mse':
+        loss_fn = torch.nn.MSELoss(reduction='sum')
+    elif loss_type == 'smae':
+        loss_fn = torch.nn.SmoothL1Loss(reduction='sum')
+    else:
+        raise ValueError
 
     # how many parameters?
     print()
@@ -101,19 +102,9 @@ if __name__== '__main__':
     model.save_args('.')
 
     ### UPLOAD HYPERPARAMETERS AND METADATA TO WANDB
-    # wandb_section = (
-    #     f'{dataset.set_name.replace("-", "_")}_'
-    #     f'{rand_gen.initial_seed()}-'
-    #     f'split{split_ratio[0]}{split_ratio[1]}'
-    # )
     wandb_section = ''
-    # model_id = osp.basename(osp.dirname(__file__))[:3]
     wandb.init(
         project='thermostability-all_lysates',
-        # name=(
-        #     f'{model_id}-feat2fc{model.feat2fc}-fc{model.dim_hidden_ls}-'
-        #     f'node{model.dim_node_hidden_ls}-dims{model.graph_dims}'
-        # ),
         name=osp.basename(os.getcwd()),
         config=dict(
             n_epochs=n_epochs,
@@ -122,20 +113,26 @@ if __name__== '__main__':
             dataset=dataset.set_name,
             split_ratio=split_ratio,
             dataset_version=dataset.version,
-            edge_types=model.graph_dims,
-            node_feat=model.node_feat_name,
-            node_hidden_size=model.dim_node_hidden_ls,
-            fc_hidden_size=model.dim_hidden_ls,
-            dropout_rate=model.dropout_rate,
-            feat2fc=model.feat2fc,
-            conv_norm=model.conv_norm,
-            fc_norm=model.fc_norm,
+            edge_types=model.all_args['graph_dims'],
+            node_feat=model.all_args['node_feat_name'],
+            node_hidden_size=model.all_args['dim_node_hidden_ls'],
+            fc_hidden_size=model.all_args['dim_hidden_ls'],
+            dropout_rate=model.all_args['dropout_rate'],
+            dropedge_rate=model.all_args['dropedge_rate'],
+            dropnode_rate=model.all_args['dropnode_rate'],
+            dropfeat_rate=model.all_args['dropfeat_rate'],
+            feat2fc=model.all_args['feat2fc'],
+            conv_norm=model.all_args['conv_norm'],
+            fc_norm=model.all_args['fc_norm'],
+            global_pool=model.all_args['global_pool'],
             random_seed=rand_gen.initial_seed(),
+            loss_fn=loss_type,
         ),
     )
+    wandb.watch(model, log='gradients', log_freq=10)
     # configurate WandB
-    wandb.define_metric('train_loss', summary='min')
-    wandb.define_metric('valid_loss', summary='min')
+    wandb.define_metric(f'train_loss ({loss_type})', summary='min')
+    wandb.define_metric(f'valid_loss ({loss_type})', summary='min')
     wandb.define_metric('train_mse', summary='min')
     wandb.define_metric('valid_mse', summary='min')
     wandb.define_metric('train_mae', summary='min')
@@ -173,7 +170,7 @@ if __name__== '__main__':
     )
     train_size = len(train_set)
     train_accessions_ordered = dataset.processable_accessions[train_set.indices]
-    train_order = {train_accessions_ordered[i]: i for i in range(train_size)}
+    train_order = { train_accessions_ordered[i]: i for i in range(train_size) }
 
     valid_loader = pyg.loader.DataLoader(
         valid_set,
@@ -275,6 +272,9 @@ if __name__== '__main__':
         epoch = i+1
         print(f'Epoch {epoch}')
 
+        # time it
+        start = time.time()
+
         ### ONE PASS OVER TRAINING SET
         # pbar.set_description(f'Ep{epoch:3d} (Train Pass)')
         t_loss, t_outputs, t_labels, t_accessions = trainer.train_one_epoch(
@@ -292,7 +292,7 @@ if __name__== '__main__':
         v_loss, v_outputs, v_labels, v_accessions = trainer.evaluate(
             valid_loader
         )
-        print(f'    valid loss: {v_loss:.8f}\n')
+        print(f'    valid loss: {v_loss:.8f}')
 
         # compute various metrics
         v_metrics = [v_loss] + [
@@ -307,7 +307,6 @@ if __name__== '__main__':
             f.write(line + '\n')
 
         ### SAVE PREDICTION
-        # if epoch % 25 == 0 or epoch == 1:
         # VALIDATION SET
         # order outputted values by acccession
         idx_order = np.argsort(
@@ -333,11 +332,8 @@ if __name__== '__main__':
             torch.save(model.state_dict(), f'model-ep{epoch}.pt')
 
         ### LOG TO WANDB
-        # gradients
-        if epoch%100 == 0 or epoch == 1:
-            wandb.watch(model)
         # performance
-        item_name = ['loss'] + list(metrics.keys())
+        item_name = [f'loss  ({loss_type})'] + list(metrics.keys())
         wandb.log({
             **{
                 f'train_{item_name[i]}': t_metrics[i]
@@ -348,26 +344,28 @@ if __name__== '__main__':
                 for i in range(len(item_name))
             }
         })
-        # # predictions
-        # if epoch%25 == 0 or epoch == 1:
-        #     data = torch.dstack((t_outputs, t_labels)).squeeze().tolist()
-        #     table = wandb.Table(data=data, columns=['predicted', 'true'])
-        #     wandb.log({
-        #         "train-true_vs_pred" : wandb.plot.scatter(table,
-        #                                "predicted", "true")
-        #     })
+        # predictions
+        if epoch%25 == 0:# or epoch == 1:
+            data = torch.dstack((t_outputs, t_labels)).squeeze().tolist()
+            table = wandb.Table(data=data, columns=['predicted', 'true'])
+            wandb.log({
+                'scatter/train-true_vs_pred' : wandb.plot.scatter(
+                    table, 'predicted', 'true', 'true vs pred (train)')
+            })
 
-        #     data = torch.dstack((v_outputs, v_labels)).squeeze().tolist()
-        #     table = wandb.Table(data=data, columns=['predicted', 'true'])
-        #     wandb.log({
-        #         "valid-true_vs_pred" : wandb.plot.scatter(table,
-        #                                "predicted", "true")
-        #     })
+            data = torch.dstack((v_outputs, v_labels)).squeeze().tolist()
+            table = wandb.Table(data=data, columns=['predicted', 'true'])
+            wandb.log({
+                'scatter/valid-true_vs_pred' : wandb.plot.scatter(
+                    table, 'predicted', 'true', 'true vs pred (valid)')
+            })
+
+        # time it
+        print(f' >> Time Elapsed: {time.time()-start:.4f}s\n')
 
     ####################################################################
     # save model parameters
     ####################################################################
-    # torch.save(best_model.state_dict(), 'best_model_by_rmse.pt')#debug
     if epoch%100 != 0:
         torch.save(model.state_dict(), f'model-ep{epoch}.pt')
 
