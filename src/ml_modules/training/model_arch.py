@@ -14,12 +14,16 @@ class MultiGCN(nn.Module):
                  dim_node_feat,
                  dim_node_hidden_ls,
                  dim_hidden_ls,
-                 dropout_rate=0,
-                 dropedge_rate=0,
                  node_feat_name='x',
+                 dropout_rate=0.5,
+                 dropedge_rate=0,
+                 dropfeat_rate=0,
+                 dropnode_rate=0,
                  feat2fc=False,
                  conv_norm=True,
-                 fc_norm=True):
+                 fc_norm=True,
+                 global_pool='mean',
+                 debug=False):
         '''Instantiate all components with trainable parameters'''
 
         ### save a copy of arguments passed
@@ -37,16 +41,17 @@ class MultiGCN(nn.Module):
                     f'contact, backbone, codir, coord, deform)'
                 )
 
-        self.dim_node_feat = dim_node_feat
-        self.dim_node_hidden_ls = dim_node_hidden_ls
-        self.dim_hidden_ls = dim_hidden_ls
+        # tunables
         self.node_feat_name = node_feat_name
         self.dropout_rate = dropout_rate
         self.dropedge_rate = dropedge_rate
+        self.dropnode_rate = dropnode_rate
         self.feat2fc = feat2fc
-        self.conv_norm = conv_norm
-        self.fc_norm = fc_norm
-        # self.connect1hot = connect1hot
+        self.global_pool = global_pool
+
+        # internal parameters
+        self.training = True
+        self.debug = debug
 
         super().__init__()
 
@@ -78,6 +83,7 @@ class MultiGCN(nn.Module):
         for _ in range(self.n_graph_dims):
 
             mods = []
+
             for layer_idx in range(len(dim_node_hidden_ls)):
                 dim_input = dim_node_ls[layer_idx]
                 dim_output = dim_node_ls[layer_idx + 1]
@@ -99,6 +105,12 @@ class MultiGCN(nn.Module):
                     conv,
                     f'x{layer_idx+1}, edge_index -> x{layer_idx+1}'
                 ))
+                # dropfeat
+                if dropfeat_rate:
+                    mods.append((
+                        nn.Dropout(p=dropout_rate),
+                        f'x{layer_idx+1} -> x{layer_idx+1}'
+                    ))
                 # activation
                 mods.append((
                     nn.LeakyReLU(),
@@ -173,8 +185,26 @@ class MultiGCN(nn.Module):
         for dim_idx, dim in enumerate(self.graph_dims):
             edge_type = ('residue', dim, 'residue')
 
-            # gather node features and edges
-            dim_edge_index = data_batch[edge_type].edge_index
+            # if self.graph_dims == 'backbone':
+            #     pass
+
+            # gather node features and edges (drop edges if p != 0)
+            dim_edge_index, _ = pyg.utils.dropout_edge(
+                data_batch[edge_type].edge_index,
+                p=self.dropedge_rate,
+                force_undirected=True,
+                training=self.training
+            )
+
+            dim_edge_index, _, node_mask = pyg.utils.dropout_node(
+                dim_edge_index,
+                p=self.dropnode_rate,
+                num_nodes=data_batch['residue'].num_nodes,
+                training=self.training
+            )
+
+            # keep features only retained nodes
+            x0[~node_mask] = 0
 
             conv_block = self.conv_block_list[dim_idx]
             x = conv_block(x0, dim_edge_index, data_batch['residue'].batch)
@@ -184,7 +214,14 @@ class MultiGCN(nn.Module):
 
         x = torch.cat(fc_input, dim=1)
         # unify dimensionality across proteins
-        x = pyg.nn.global_mean_pool(x, data_batch['residue'].batch)
+        if self.global_pool == 'mean':
+            x = pyg.nn.global_mean_pool(x, data_batch['residue'].batch)
+        elif self.global_pool == 'max':
+            x = pyg.nn.global_max_pool(x, data_batch['residue'].batch)
+        elif self.global_pool == 'sum':
+            x = pyg.nn.global_add_pool(x, data_batch['residue'].batch)
+        else:
+            raise ValueError('global_pool must be "mean" or "max"')
 
         for fc_block in self.fc_block_list:
             x = fc_block(x)
@@ -229,3 +266,16 @@ class MultiGCN(nn.Module):
                         nn.init.zeros_(layer.bias)
             # for name, param in self.fc_block.named_parameters():
             #     print(name, param.size())
+
+    def eval(self):
+        return self.train(False)
+
+    def train(self, mode=True):
+
+        if mode:
+            self.training = True
+        else:
+            self.training = False
+
+        # call parent function
+        return super().train(mode)
