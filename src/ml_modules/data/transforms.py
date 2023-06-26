@@ -7,6 +7,7 @@ def norm_0to1(data):
         min=0, max=1
     )
     data['residue'].pLDDT = data['residue'].pLDDT / 100
+    data.ogt = data.ogt / 100
     return data
 
 def trim_pae(data):

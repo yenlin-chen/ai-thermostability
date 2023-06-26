@@ -41,7 +41,7 @@ class DeepSTABp_Dataset(pyg.data.Dataset):
     '''
 
     def __init__(self, experiment=None, organism=None, cell_line=None,
-                 version='v2-pae', transform=None, device=df_device):
+                 version='v3-ogt', transform=None, device=df_device):
 
         self.device = device
         self.version = version
@@ -114,6 +114,11 @@ class DeepSTABp_Dataset(pyg.data.Dataset):
 
         print(' -> Number of unique accessions       :',
               len(self.all_accessions))
+
+        assert len(self.meta) == len(self.all_accessions)
+
+        ### EXTRACT OGT
+        self.all_ogt_dict = {e[0]: float(e[2]) for e in self.meta}
 
         ### COMMON ATTRIBUTES
         self.af_retriever = AlphaFold_Retriever()
@@ -234,7 +239,7 @@ class DeepSTABp_Dataset(pyg.data.Dataset):
 
         pbar = tqdm(self.get_processable_accessions(),
                     dynamic_ncols=True, ascii=True)
-        for i, accession in enumerate(pbar):
+        for accession in pbar:
             pbar.set_description(f'Graphs {accession:<12s}')
             path_to_files = self.tnm_computer.path_to_outputs(accession)
 
@@ -250,6 +255,9 @@ class DeepSTABp_Dataset(pyg.data.Dataset):
             data = pyg.data.HeteroData()
             data.accession = accession
             data['residue'].res1hot = torch.from_numpy(resnames_1hot)
+            data.ogt = self.all_ogt_dict[
+                self.af_retriever.unmodify_accession(accession)
+            ]
 
             ### ADD PROTBERT ENCODING AS NODE ATTRIBUTES
             sequence = ' '.join(resnames)
@@ -283,7 +291,7 @@ class DeepSTABp_Dataset(pyg.data.Dataset):
                 edge_index
             )
 
-            # ### ADD CONTACT EDGES
+            # ### ADD CONTACT EDGES FROM TNM
             # # for some accessions, TNM will generate a blank file for
             # # contact maps
             # raw_data = np.loadtxt(path_to_files['cont'], dtype=np.str_)
