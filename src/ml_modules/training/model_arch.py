@@ -13,18 +13,24 @@ class MultiGCN(nn.Module):
                  graph_dims,
                  dim_node_feat,
                  dim_node_hidden_ls,
-                 dim_hidden_ls,
+                 fc_hidden_ls,
+                 use_ogt=False,
+                 feat2fc=False,
                  node_feat_name='x',
-                 dropout_rate=0.5,
+                 dropout_rate=0,
                  dropedge_rate=0,
                  dropfeat_rate=0,
+                 dropfeat_layers=[1],
                  dropnode_rate=0,
-                 feat2fc=False,
                  conv_norm=True,
                  fc_norm=True,
                  global_pool='mean',
                  debug=False):
         '''Instantiate all components with trainable parameters'''
+
+        self.debug = debug
+        if debug:
+            torch.autograd.set_detect_anomaly(True)
 
         ### save a copy of arguments passed
         # for cloning the model later
@@ -43,6 +49,7 @@ class MultiGCN(nn.Module):
 
         # tunables
         self.node_feat_name = node_feat_name
+        self.use_ogt = use_ogt
         self.dropout_rate = dropout_rate
         self.dropedge_rate = dropedge_rate
         self.dropnode_rate = dropnode_rate
@@ -89,11 +96,24 @@ class MultiGCN(nn.Module):
                 dim_output = dim_node_ls[layer_idx + 1]
 
                 # normalization
+                next_idx = layer_idx
                 if conv_norm:
                     mods.append((
                         pyg.nn.GraphNorm(dim_input),
-                        f'x{layer_idx}, batch -> x{layer_idx+1}'
+                        f'x{next_idx}, batch -> x{layer_idx+1}'
                     ))
+                    next_idx = layer_idx+1
+
+                # dropfeat
+                if dropfeat_rate:
+                    if (dropfeat_layers == 'all'
+                        or layer_idx+1 in dropfeat_layers):
+                        mods.append((
+                            nn.Dropout(p=dropfeat_rate),
+                            f'x{next_idx} -> x{layer_idx+1}'
+                        ))
+                        next_idx = layer_idx+1
+
                 # convolution
                 conv = pyg.nn.GCNConv(
                     dim_input, dim_output,
@@ -103,14 +123,9 @@ class MultiGCN(nn.Module):
                 )
                 mods.append((
                     conv,
-                    f'x{layer_idx+1}, edge_index -> x{layer_idx+1}'
+                    f'x{next_idx}, edge_index -> x{layer_idx+1}'
                 ))
-                # dropfeat
-                if dropfeat_rate:
-                    mods.append((
-                        nn.Dropout(p=dropout_rate),
-                        f'x{layer_idx+1} -> x{layer_idx+1}'
-                    ))
+
                 # activation
                 mods.append((
                     nn.LeakyReLU(),
@@ -132,10 +147,13 @@ class MultiGCN(nn.Module):
             total_node_dims += (dim_node_feat + n_add_feat)
 
         ### INSTANTIATE LINEAR LAYERS
-        if not isinstance(dim_hidden_ls, list):
-            raise TypeError('dim_hidden_ls must be a list of ints')
+        if not isinstance(fc_hidden_ls, list):
+            raise TypeError('fc_hidden_ls must be a list of ints')
 
-        dim_linear_ls = [total_node_dims] + dim_hidden_ls + [1]
+        dim_linear_ls = [total_node_dims] + fc_hidden_ls + [1]
+        if use_ogt:
+            dim_linear_ls[0] = dim_linear_ls[0] + 1
+
         self.n_linear_layers = len(dim_linear_ls) - 1
 
         self.fc_block_list = nn.ModuleList([])
@@ -188,7 +206,7 @@ class MultiGCN(nn.Module):
             # if self.graph_dims == 'backbone':
             #     pass
 
-            # gather node features and edges (drop edges if p != 0)
+            # drop edges
             dim_edge_index, _ = pyg.utils.dropout_edge(
                 data_batch[edge_type].edge_index,
                 p=self.dropedge_rate,
@@ -196,6 +214,7 @@ class MultiGCN(nn.Module):
                 training=self.training
             )
 
+            # drop nodes
             dim_edge_index, _, node_mask = pyg.utils.dropout_node(
                 dim_edge_index,
                 p=self.dropnode_rate,
@@ -212,16 +231,23 @@ class MultiGCN(nn.Module):
             # pipe features from each graph dimension into the fc layer
             fc_input.append(x)
 
-        x = torch.cat(fc_input, dim=1)
-        # unify dimensionality across proteins
-        if self.global_pool == 'mean':
-            x = pyg.nn.global_mean_pool(x, data_batch['residue'].batch)
-        elif self.global_pool == 'max':
-            x = pyg.nn.global_max_pool(x, data_batch['residue'].batch)
-        elif self.global_pool == 'sum':
-            x = pyg.nn.global_add_pool(x, data_batch['residue'].batch)
-        else:
-            raise ValueError('global_pool must be "mean" or "max"')
+        if not fc_input and self.use_ogt:
+            x = data_batch.ogt[:,None]
+
+        elif fc_input:
+            x = torch.cat(fc_input, dim=1)
+            # unify dimensionality across proteins
+            if self.global_pool == 'mean':
+                x = pyg.nn.global_mean_pool(x, data_batch['residue'].batch)
+            elif self.global_pool == 'max':
+                x = pyg.nn.global_max_pool(x, data_batch['residue'].batch)
+            elif self.global_pool == 'sum':
+                x = pyg.nn.global_add_pool(x, data_batch['residue'].batch)
+            else:
+                raise ValueError('global_pool must be "mean" or "max"')
+
+            if self.use_ogt:
+                x = torch.cat((x, data_batch.ogt[:,None]), dim=1)
 
         for fc_block in self.fc_block_list:
             x = fc_block(x)
