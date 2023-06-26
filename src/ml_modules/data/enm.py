@@ -16,7 +16,7 @@ class TNM_Computer:
     Phys. Rev. Lett. 104, 228103 (2010).
     '''
 
-    def __init__(self):
+    def __init__(self, sigma=2.0):
 
         self.tnm_dir = os.path.join(collation_dir, 'TNM')
 
@@ -28,6 +28,8 @@ class TNM_Computer:
                                      'template-tnm.in')
         with open(template_path, 'r') as f:
             self.template_script = f.read()
+
+        self.sigma = sigma
 
     def get_failed_accessions(self, return_reason=False):
         '''Returns accessions for which TNM computation failed.'''
@@ -46,7 +48,7 @@ class TNM_Computer:
             return np.unique(entries[:,0])
 
     def path_to_work(self, accession):
-        return os.path.join(self.tnm_dir, 'run', accession)
+        return os.path.join(self.tnm_dir, f'run-sigma{self.sigma}', accession)
 
     def path_to_outputs(self, accession):
 
@@ -116,7 +118,8 @@ class TNM_Computer:
         # modify template script
         replacements = [('PDBID_PLACEHOLDER', pdb_path),
                         ('CHAINID_PLACEHOLDER', 'A'),
-                        ('CUTOFF', '4.5')]
+                        ('CUTOFF', '4.5'),
+                        ('SIGMA_PLACEHOLDER', str(self.sigma))]
         script_content = self.template_script
         for old, new in replacements:
             script_content = script_content.replace(old, new)

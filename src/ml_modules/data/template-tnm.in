@@ -97,7 +97,7 @@ ALLOSTERY=1            ! Compute dynamical couplings?
 PROF_TYPE=C            ! A=average coupling P=Principal eigenvector of coup.
 #                      ! C=effective connectivity of coup.
 ALL_PAIRS=1            ! Print couplings for all pairs? (1=YES)
-SIGMA=2.0              ! if(ALL_PAIRS==0), couplings are printed if
+SIGMA=SIGMA_PLACEHOLDER ! if(ALL_PAIRS==0), couplings are printed if
 #                      ! c_ij >/< <c>+/- SIGMA*st.dev.
 PRINT_DEF_COUPLING=1   ! Print deformation couplings
 # Deformation coupling A_ij is the deformations produced on site j by a
