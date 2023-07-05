@@ -1,0 +1,7 @@
+wandb: Currently logged in as: yenlin-chen. Use `wandb login --relogin` to force relogin
+wandb: Tracking run with wandb version 0.15.4
+wandb: Run data is saved locally in /home/b05501056/home/Dropbox/projects/ai-thermostability/code/experiments/all_lysates/final/gat_d3e_FTF-1x32-0_Nmean/wandb/run-20230704_221842-s4w0nvm3
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run gat_d3e_FTF-1x32-0_Nmean
+wandb: ⭐️ View project at https://wandb.ai/yenlin-chen/thermostability-dim_reduced
+wandb: 🚀 View run at https://wandb.ai/yenlin-chen/thermostability-dim_reduced/runs/s4w0nvm3

@@ -1,0 +1,158 @@
+
+============================ Messages from Goddess ============================
+ * Job starting from: Tue Jul 4 22:18:33 CST 2023
+ * Job ID           : 45874
+ * Job name         : gat_d3e_FTF-1x32-0_Nmean
+ * Job partition    : v100-32g
+ * Nodes            : 1
+ * Cores            : 2
+ * Working directory: /home/b05501056/home/Dropbox/projects/ai-thermostability/code/experiments/all_lysates/final/gat_d3e_FTF-1x32-0_Nmean
+===============================================================================
+
+Loading python/3.8.10-gpu-cuda-11.1
+  Loading requirement: cuda/11.1
+Using 2 workers for dataloading
+Training on cuda device
+
+ -> Generating dataset from /home/b05501056/home/Dropbox/projects/ai-thermostability/code/data/collation/DeepSTABp/lysate.csv
+ -> Number of entries in meta file    : 29758
+     >> mean value of Tm  : 49.8242
+     >> range of Tm       : 30.4417-92.5729
+ -> Number of unique accessions       : 29758
+ -> Final number of accessions        : 20255
+     >> mean value of Tm: 50.4288
+     >> range of Tm     : 30.4417-92.5729
+ -> Number of unique accessions       : 20255
+Dataset instantiation complete.
+
+
+MultiGCN(
+  (pLDDT_block): Identity()
+  (bfactor_block): Identity()
+  (conv_block_list): ModuleList(
+    (0): Sequential(
+      (0): GATConv(1026, 32, heads=1)
+      (1): LeakyReLU(negative_slope=0.01)
+      (2): <function MultiGCN.__init__.<locals>.<lambda> at 0x7f7d2260d820>
+      (3): JumpingKnowledge(cat)
+      (4): GraphNorm(32)
+    )
+    (1): Sequential(
+      (0): GATConv(1026, 32, heads=1)
+      (1): LeakyReLU(negative_slope=0.01)
+      (2): <function MultiGCN.__init__.<locals>.<lambda> at 0x7f7c555fe5e0>
+      (3): JumpingKnowledge(cat)
+      (4): GraphNorm(32)
+    )
+    (2): Sequential(
+      (0): GATConv(1026, 32, heads=1)
+      (1): LeakyReLU(negative_slope=0.01)
+      (2): <function MultiGCN.__init__.<locals>.<lambda> at 0x7f7c555feb80>
+      (3): JumpingKnowledge(cat)
+      (4): GraphNorm(32)
+    )
+    (3): Sequential(
+      (0): GATConv(1026, 32, heads=1)
+      (1): LeakyReLU(negative_slope=0.01)
+      (2): <function MultiGCN.__init__.<locals>.<lambda> at 0x7f7c555fe9d0>
+      (3): JumpingKnowledge(cat)
+      (4): GraphNorm(32)
+    )
+    (4): Sequential(
+      (0): GATConv(1026, 32, heads=1)
+      (1): LeakyReLU(negative_slope=0.01)
+      (2): <function MultiGCN.__init__.<locals>.<lambda> at 0x7f7c555df280>
+      (3): JumpingKnowledge(cat)
+      (4): GraphNorm(32)
+    )
+    (5): Sequential(
+      (0): GATConv(1026, 32, heads=1)
+      (1): LeakyReLU(negative_slope=0.01)
+      (2): <function MultiGCN.__init__.<locals>.<lambda> at 0x7f7c555df820>
+      (3): JumpingKnowledge(cat)
+      (4): GraphNorm(32)
+    )
+  )
+  (graph_embed_block): Identity()
+  (ogt_block): Sequential(
+    (0): Linear(in_features=1, out_features=20, bias=True)
+    (1): Dropout(p=0.2, inplace=False)
+    (2): LeakyReLU(negative_slope=0.01)
+    (3): Linear(in_features=20, out_features=10, bias=True)
+    (4): Dropout(p=0.2, inplace=False)
+    (5): LeakyReLU(negative_slope=0.01)
+  )
+  (fc_block): Sequential(
+    (0): Linear(in_features=202, out_features=134, bias=True)
+    (1): Dropout(p=0.5, inplace=False)
+    (2): LeakyReLU(negative_slope=0.01)
+    (3): BatchNorm1d(134, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+    (4): Linear(in_features=134, out_features=67, bias=True)
+    (5): Dropout(p=0.5, inplace=False)
+    (6): LeakyReLU(negative_slope=0.01)
+    (7): BatchNorm1d(67, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+    (8): Linear(in_features=67, out_features=1, bias=True)
+  )
+)
+
+======================================================================
+Layer (type:depth-idx)                        Param #
+======================================================================
+MultiGCN                                      --
+├─Identity: 1-1                               --
+├─Identity: 1-2                               --
+├─ModuleList: 1-3                             --
+│    └─Sequential_b1822d: 2-1                 --
+│    │    └─GATConv: 3-1                      32,928
+│    │    └─LeakyReLU: 3-2                    --
+│    │    └─JumpingKnowledge: 3-3             --
+│    │    └─GraphNorm: 3-4                    96
+│    └─Sequential_b18367: 2-2                 --
+│    │    └─GATConv: 3-5                      32,928
+│    │    └─LeakyReLU: 3-6                    --
+│    │    └─JumpingKnowledge: 3-7             --
+│    │    └─GraphNorm: 3-8                    96
+│    └─Sequential_b1849c: 2-3                 --
+│    │    └─GATConv: 3-9                      32,928
+│    │    └─LeakyReLU: 3-10                   --
+│    │    └─JumpingKnowledge: 3-11            --
+│    │    └─GraphNorm: 3-12                   96
+│    └─Sequential_b185c8: 2-4                 --
+│    │    └─GATConv: 3-13                     32,928
+│    │    └─LeakyReLU: 3-14                   --
+│    │    └─JumpingKnowledge: 3-15            --
+│    │    └─GraphNorm: 3-16                   96
+│    └─Sequential_b186ea: 2-5                 --
+│    │    └─GATConv: 3-17                     32,928
+│    │    └─LeakyReLU: 3-18                   --
+│    │    └─JumpingKnowledge: 3-19            --
+│    │    └─GraphNorm: 3-20                   96
+│    └─Sequential_b18812: 2-6                 --
+│    │    └─GATConv: 3-21                     32,928
+│    │    └─LeakyReLU: 3-22                   --
+│    │    └─JumpingKnowledge: 3-23            --
+│    │    └─GraphNorm: 3-24                   96
+├─Identity: 1-4                               --
+├─Sequential: 1-5                             --
+│    └─Linear: 2-7                            40
+│    └─Dropout: 2-8                           --
+│    └─LeakyReLU: 2-9                         --
+│    └─Linear: 2-10                           210
+│    └─Dropout: 2-11                          --
+│    └─LeakyReLU: 2-12                        --
+├─Sequential: 1-6                             --
+│    └─Linear: 2-13                           27,202
+│    └─Dropout: 2-14                          --
+│    └─LeakyReLU: 2-15                        --
+│    └─BatchNorm1d: 2-16                      268
+│    └─Linear: 2-17                           9,045
+│    └─Dropout: 2-18                          --
+│    └─LeakyReLU: 2-19                        --
+│    └─BatchNorm1d: 2-20                      134
+│    └─Linear: 2-21                           68
+======================================================================
+Total params: 235,111
+Trainable params: 235,111
+Non-trainable params: 0
+======================================================================
+Epoch 1
