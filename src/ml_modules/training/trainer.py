@@ -6,9 +6,9 @@ df_device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 class Trainer:
     def __init__(self,
-                 model, loss_fn, optimizer,
+                 model, loss_fn, optimizer, scheduler=None,
                  # CAUTION: RISK OF DATA LEAKAGE
-                 # TODO: should update default values
+                 # TODO: update default values
                  min_max=(25, 100), mean_std=(50,15),
                  num_workers=4, device=df_device, reset_weights=True):
         '''
@@ -37,6 +37,7 @@ class Trainer:
             self.model = model.to(device)
         self.loss_fn = loss_fn
         self.optimizer = optimizer
+        self.scheduler = scheduler
 
         # values for normlizing dataset labels
         self.val_min, self.val_max = min_max[0], min_max[1]
@@ -136,6 +137,9 @@ class Trainer:
             )
             labels[i*batch_size:(i+1)*batch_size] = batch_Tm[:pred.numel()]
             accessions[i*batch_size:(i+1)*batch_size] = data_batch.accession
+
+        if self.scheduler is not None:
+            self.scheduler.step()
 
         avg_loss = total_loss / train_size
 
