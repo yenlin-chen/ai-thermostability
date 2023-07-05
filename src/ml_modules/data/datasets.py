@@ -283,7 +283,7 @@ class DeepSTABp_Dataset(pyg.data.Dataset):
             # contact edges saved by the TNM program is somewhat sporadic
             # here the contact map is based on the position of Ca atoms
             anm = prody.ANM(name='accession_CA')
-            anm.buildHessian(atoms, cutoff=8)
+            anm.buildHessian(atoms, cutoff=12)
             cont = -anm.getKirchhoff().astype(np.int_)
             np.fill_diagonal(cont, 1) # contact map completed here
             edge_index = np.argwhere(cont==1).T # undirected graph
@@ -407,8 +407,8 @@ class DeepSTABp_Dataset(pyg.data.Dataset):
 if __name__ == '__main__':
 
     dataset = DeepSTABp_Dataset(
-        experiment='cell',
+        experiment='lysate',
         organism=None,
         cell_line=None,
-        version='v2-pae'
+        version='v4-higher_threshold'
     )

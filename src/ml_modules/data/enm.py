@@ -16,7 +16,7 @@ class TNM_Computer:
     Phys. Rev. Lett. 104, 228103 (2010).
     '''
 
-    def __init__(self, sigma=2.0):
+    def __init__(self, sigma=3.0):
 
         self.tnm_dir = os.path.join(collation_dir, 'TNM')
 
@@ -314,7 +314,7 @@ class TNM_Computer:
 
 if __name__ == '__main__':
 
-    tnm_computer = TNM_Computer()
+    tnm_computer = TNM_Computer(sigma=2.0)
 
     # print(tnm_computer.get_failed_accessions())
 
