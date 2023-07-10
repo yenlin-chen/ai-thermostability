@@ -39,7 +39,7 @@ class Trainer:
         self.optimizer = optimizer
         self.scheduler = scheduler
 
-        # values for normlizing dataset labels
+        # values for standardizing dataset labels
         self.val_min, self.val_max = min_max[0], min_max[1]
         self.val_range = self.val_max - self.val_min
         self.val_mean, self.val_std = mean_std[0], mean_std[1]
@@ -116,7 +116,7 @@ class Trainer:
             pred = self.model(data_batch).squeeze()
 
             ### compute the loss and its gradients
-            # normalize true labels to [0,1]
+            # standardize true labels to mean 0 and std 1
             for j, a in enumerate(data_batch.accession):
                 batch_Tm[j] = Tm_dict[a]
             true = (batch_Tm[:pred.numel()] - self.val_mean) / self.val_std
@@ -195,7 +195,7 @@ class Trainer:
             pred = self.model(data_batch).squeeze()
 
             ### compute loss
-            # normalize true labels to [0,1]
+            # standardize true labels to mean 0 and std 1
             for j, a in enumerate(data_batch.accession):
                 batch_Tm[j] = Tm_dict[a]
             true = (batch_Tm[:pred.numel()] - self.val_mean) / self.val_std
