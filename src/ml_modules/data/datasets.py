@@ -120,6 +120,9 @@ class DeepSTABp_Dataset(pyg.data.Dataset):
         ### EXTRACT OGT
         self.all_ogt_dict = {e[0]: float(e[2]) for e in self.meta}
 
+        ### EXTRACT SPECIES
+        self.all_species_dict = {e[0]: str(e[3]) for e in self.meta}
+
         ### COMMON ATTRIBUTES
         self.af_retriever = AlphaFold_Retriever()
         self.tnm_computer = TNM_Computer()
@@ -258,6 +261,9 @@ class DeepSTABp_Dataset(pyg.data.Dataset):
             data.ogt = self.all_ogt_dict[
                 self.af_retriever.unmodify_accession(accession)
             ]
+            data.species = self.all_species_dict[
+                self.af_retriever.unmodify_accession(accession)
+            ]
 
             ### ADD PROTBERT ENCODING AS NODE ATTRIBUTES
             sequence = ' '.join(resnames)
@@ -284,8 +290,8 @@ class DeepSTABp_Dataset(pyg.data.Dataset):
             # here the contact map is based on the position of Ca atoms
             anm = prody.ANM(name='accession_CA')
             anm.buildHessian(atoms, cutoff=12)
-            cont = -anm.getKirchhoff().astype(np.int_)
-            np.fill_diagonal(cont, 1) # contact map completed here
+            cont = -anm.getKirchhoff().astype(np.int_) # the Laplacian matrix
+            np.fill_diagonal(cont, 1) # contact map completed here (with loops)
             edge_index = np.argwhere(cont==1).T # undirected graph
             data['residue', 'contact', 'residue'].edge_index = torch.from_numpy(
                 edge_index
@@ -410,5 +416,5 @@ if __name__ == '__main__':
         experiment='lysate',
         organism=None,
         cell_line=None,
-        version='v4-higher_threshold'
+        version='v5-sigma2_cutoff12_species'
     )

@@ -16,7 +16,7 @@ class TNM_Computer:
     Phys. Rev. Lett. 104, 228103 (2010).
     '''
 
-    def __init__(self, sigma=3.0):
+    def __init__(self, sigma=2.0):
 
         self.tnm_dir = os.path.join(collation_dir, 'TNM')
 

@@ -37,3 +37,5 @@ res_to_1hot = {
     'W': 18,
     'P': 19,
 }
+
+ohe_to_res = {v: k for k, v in res_to_1hot.items()}
