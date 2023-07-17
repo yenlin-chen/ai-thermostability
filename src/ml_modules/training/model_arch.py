@@ -331,7 +331,7 @@ class MultiGCN(nn.Module):
             if feat_reduce_hidden_ls is None:
                 if not all([feat_reduce_dim, n_feat_reduce_layers]):
                     raise ValueError(
-                        'All of the following arguments should be specified if '
+                        'All of the following arguments must be specified if '
                         '`feat_reduce_hidden_ls` is None: '
                         '`feat_reduce_dim`, `n_feat_reduce_layers`'
                     )
@@ -343,19 +343,44 @@ class MultiGCN(nn.Module):
                         '`feat_reduce_dim`, `n_feat_reduce_layers`'
                     )
 
-            if not fc_norm:
-                if norm_fc_input is not None:
-                    raise ValueError(
-                        '`norm_fc_input` must not be specified if '
-                        '`fc_norm` is False'
-                    )
-
             # other arguments
             if feat_reduce_dropout_rate is None:
                 raise ValueError(
                     '`feat_reduce_dropout_rate` must be specified if '
                     '`use_feat_reduce` is True'
                 )
+
+        ### RUELS FOR FINAL FC
+
+        # mutually exclusive arguments
+        if fc_hidden_ls is None:
+            if not n_fc_hidden_layers:
+                raise ValueError(
+                    'All of the following arguments must be specified if '
+                    '`fc_hidden_ls` is None: '
+                    '`n_fc_hidden_layers`'
+                )
+
+        else:
+            if n_fc_hidden_layers:
+                raise ValueError(
+                    'None of the following arguments should be specified if '
+                    '`fc_hidden_ls` is not None: '
+                    '`n_fc_hidden_layers`'
+                )
+
+        if not fc_norm:
+            if norm_fc_input is not None:
+                raise ValueError(
+                    '`norm_fc_input` must not be specified if '
+                    '`fc_norm` is False'
+                )
+
+        # other arguments
+        if fc_dropout_rate is None:
+            raise ValueError(
+                '`fc_dropout_rate` must be specified'
+            )
 
         ################################################################
         # SAVE A COPY OF ARGUMENTS PASSED
@@ -1062,13 +1087,14 @@ class MultiGCN(nn.Module):
         return super().train(mode)
 
 class DeepSTABp(nn.Module):
-    def __init__(self, debug=False):
+    def __init__(self, use_ogt=True, debug=False):
         '''Instantiate all components with trainable parameters'''
 
         self.debug = debug
         if debug:
             torch.autograd.set_detect_anomaly(True)
-        self.debug = debug
+
+        self.use_ogt = use_ogt
 
         super().__init__()
 
@@ -1089,29 +1115,36 @@ class DeepSTABp(nn.Module):
         ################################################################
         # INSTANTIATE OGT BLOCK
         ################################################################
-        fc_neuron_ls = [1,20,10]
 
-        ogt_block = []
-        for layer_idx in range(len(fc_neuron_ls) - 1):
-            dim_input = fc_neuron_ls[layer_idx]
-            dim_output = fc_neuron_ls[layer_idx + 1]
+        if use_ogt:
+            fc_neuron_ls = [1,20,10]
 
-            # linear connection
-            ogt_block.append(nn.Linear(dim_input, dim_output))
+            ogt_block = []
+            for layer_idx in range(len(fc_neuron_ls) - 1):
+                dim_input = fc_neuron_ls[layer_idx]
+                dim_output = fc_neuron_ls[layer_idx + 1]
 
-            # activation
-            ogt_block.append(nn.SELU())
+                # linear connection
+                ogt_block.append(nn.Linear(dim_input, dim_output))
 
-            # dropout
-            ogt_block.append(nn.Dropout(p=0.2))
+                # activation
+                ogt_block.append(nn.SELU())
 
-        self.ogt_block = nn.Sequential(*ogt_block)
+                # dropout
+                ogt_block.append(nn.Dropout(p=0.2))
+
+            self.ogt_block = nn.Sequential(*ogt_block)
+
+            dim_fc_input = 1034
+
+        else:
+            dim_fc_input = 1024
 
         ################################################################
         # INSTANTIATE FULLY CONNECTED LAYERS
         ################################################################
 
-        fc_neuron_ls = [1034, 4098, 512, 256, 128, 1]
+        fc_neuron_ls = [dim_fc_input, 4098, 512, 256, 128, 1]
 
         fc_block = []
         for layer_idx in range(len(fc_neuron_ls) - 1):
@@ -1139,17 +1172,20 @@ class DeepSTABp(nn.Module):
         ################################################################
         # INPUT PREPARATION
         ################################################################
-        ogt = data_batch.ogt[:,None]
+        ogt = data_batch.ogt[:,None].float()
         x0 = data_batch['residue'].x.float()
 
         ################################################################
         # FC INPUT PREPARATION
         ################################################################
 
-        ogt_embedding = self.ogt_block(ogt)
         feat_embedding = self.feat_pool(x0, data_batch['residue'].batch)
 
-        fc_input = torch.cat([feat_embedding, ogt_embedding], dim=1)
+        if self.use_ogt:
+            ogt_embedding = self.ogt_block(ogt)
+            fc_input = torch.cat([feat_embedding, ogt_embedding], dim=1)
+        else:
+            fc_input = feat_embedding
 
         ################################################################
         # FC LAYERS
@@ -1169,20 +1205,21 @@ class DeepSTABp(nn.Module):
     def reset_parameters(self):
 
         # (re)initialize ogt parameters
-        for layer in self.ogt_block.children():
-            if isinstance(layer, nn.Linear):
-                nn.init.kaiming_normal_(
-                    layer.weight, nonlinearity='linear'
-                )
-                nn.init.zeros_(layer.bias)
-            if isinstance(layer, nn.BatchNorm1d):
-                layer.reset_parameters()
+        if self.use_ogt:
+            for layer in self.ogt_block.children():
+                if isinstance(layer, nn.Linear):
+                    nn.init.kaiming_normal_(
+                        layer.weight, nonlinearity='linear'
+                    )
+                    nn.init.zeros_(layer.bias)
+                if isinstance(layer, nn.BatchNorm1d):
+                    layer.reset_parameters()
 
         # (re)initialize fc parameters
         count = 1
         for layer in self.fc_block.children():
             if isinstance(layer, nn.Linear):
-                if count < self.n_linear_layers:
+                if count < 5:
                     nn.init.kaiming_normal_(
                         layer.weight, nonlinearity='linear'
                     )
