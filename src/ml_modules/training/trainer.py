@@ -59,6 +59,13 @@ class Trainer:
         else:
             self.model.reset_parameters()
 
+    def load_model_state_dict(self, state_dict):
+
+        if isinstance(self.model, torch.nn.DataParallel):
+            self.model.module.load_state_dict(state_dict)
+        else:
+            self.model.load_state_dict(state_dict)
+
     # @pyg.profile.profileit()
     def train_one_epoch(self, train_loader):
 
