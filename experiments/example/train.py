@@ -1,7 +1,7 @@
 import os, sys, wandb, time, yaml
 import os.path as osp
 self_dir = osp.normpath(os.getcwd())
-root_dir = osp.dirname(osp.dirname(osp.dirname(self_dir)))
+root_dir = osp.dirname(osp.dirname(self_dir))
 package_dir = osp.normpath(osp.join(root_dir, 'src'))
 sys.path.append(package_dir)
 
@@ -47,7 +47,7 @@ def main():
     # initialize wandb
     ####################################################################
     run = wandb.init(
-        project='thermostability-dim_reduced',
+        project='thermostability-thesis',
         name=osp.basename(os.getcwd())
     )
 
@@ -68,7 +68,7 @@ def main():
     ####################################################################
 
     # hyperparameters
-    n_epochs = 150
+    n_epochs = 150 # FLAG
     batch_size = 64 # 2 ** wandb.config.batch_size_power
     learning_rate = 0.01 # 2 ** wandb.config.lr_power
     split_ratio = [8,2]
@@ -80,7 +80,7 @@ def main():
         experiment='lysate',
         organism=None,
         cell_line=None,
-        version='v3-ogt',
+        version='v5-sigma2_cutoff12_species',
         transform=norm_0to1
     )
     print()
@@ -89,7 +89,7 @@ def main():
         graph_dims=['pae', 'contact', 'backbone', 'codir', 'coord', 'deform'],
         node_feat_name='x',
         dim_node_feat=1024,
-        use_ogt=True,
+        use_ogt=False,
         feat2fc=False,
         use_node_pLDDT=True,
         use_node_bfactor=True,
@@ -104,9 +104,9 @@ def main():
         dim_shape='constant',
         dim_node_hidden=32,
         conv_norm=True,
-        norm_graph_input=True,
+        norm_graph_input=False,
         norm_graph_output=False,
-        graph_global_pool='max',
+        graph_global_pool='mean',
         graph_dropout_rate=0,
         dropfeat_rate=0,
         dropedge_rate=0,
@@ -129,22 +129,24 @@ def main():
         bfactor_dropout_rate=None,
 
         # OGT EMBEDDING SETUP
-        use_ogt_embedding=True,
-        ogt_dropout_rate=0.2,
+        use_ogt_embedding=None,
+        ogt_dropout_rate=None,
+
+        # FEAT2FC SETUP
+        feat_global_pool=None,
 
         # FEATURE REDUCTION SETUP
         use_feat_reduce=None,
         feat_reduce_hidden_ls=None,
         n_feat_reduce_layers=None,
         feat_reduce_dim=None,
-        feat_global_pool=None,
         feat_reduce_dropout_rate=None,
 
         # FC SETUP
         fc_hidden_ls=None,
         n_fc_hidden_layers=2,
         fc_norm=True,
-        norm_fc_input=True,
+        norm_fc_input=False,
         fc_dropout_rate=0.5,
 
         # OTHERS
@@ -214,6 +216,9 @@ def main():
     history_file = 'training_history.csv'
     prediction_file_valid = 'predicted_values-valid_set.csv'
     prediction_file_train = 'predicted_values-train_set.csv'
+    prediction_file_valid_best = 'predicted_values-valid_set-best.csv'
+    prediction_file_train_best = 'predicted_values-train_set-best.csv'
+    best_performance_file = 'best_performance.csv'
 
     ####################################################################
     # split dataset into train and valid
@@ -223,12 +228,13 @@ def main():
     n_train_data = int(n_train_batches * 512)
     n_valid_data = len(dataset) - n_train_data
 
-    train_set, valid_set = torch.utils.data.random_split(
+    train_set, valid_set = torch.utils.data.random_split( # FLAG
         dataset=dataset,
-        lengths=[n_train_data, n_valid_data],
+        lengths=[n_train_data, n_valid_data], # FLAG
+        # lengths=[50,20,len(dataset)-70], # FLAG
         generator=rand_gen
     )
-    # train_set = valid_set # debug
+    # train_set = valid_set # FLAG
 
     ### INSTANTIATE DATALOADERS
     train_loader = pyg.loader.DataLoader(
@@ -276,7 +282,7 @@ def main():
     plt.hist(valid_Tm, density=True, label=f'valid ({valid_size} entries)',
              alpha=0.7)
     plt.title(title)
-    plt.xlabel('Tm (°C)')
+    plt.xlabel(r'$T_m$ (°C)')
     plt.ylabel('density')
     plt.legend()
     plt.savefig('data_split-Tm_distr.png', dpi=300, bbox_inches='tight')
@@ -324,11 +330,18 @@ def main():
         header += f',train_{m},valid_{m}'
     with open(history_file, 'w+') as f:
         f.write(header + '\n')
+    # epoch where performance improves
+    with open(best_performance_file, 'w+') as f:
+        f.write(header + '\n')
 
     # prediction on validation set
     header = '# epoch,' + ','.join(valid_accessions_ordered)
     line_1 = '# true_labels,' + ','.join([f'{Tm:.8f}' for Tm in valid_Tm])
     with open(prediction_file_valid, 'w+') as f:
+        f.write(header +'\n')
+        f.write(line_1 +'\n')
+    # best prediction on validation set
+    with open(prediction_file_valid_best, 'w+') as f:
         f.write(header +'\n')
         f.write(line_1 +'\n')
     # prediction on training set
@@ -337,8 +350,13 @@ def main():
     with open(prediction_file_train, 'w+') as f:
         f.write(header +'\n')
         f.write(line_1 +'\n')
+    # best prediction on training set
+    with open(prediction_file_train_best, 'w+') as f:
+        f.write(header +'\n')
+        f.write(line_1 +'\n')
 
     ### TRAIN FOR N_EPOCHS
+    best_v_loss = 1e8
     # pbar = tqdm(range(n_epochs), dynamic_ncols=True, ascii=True)
     for i in range(n_epochs):
         epoch = i+1
@@ -352,7 +370,6 @@ def main():
         start = time.time()
 
         ### ONE PASS OVER TRAINING SET
-        # pbar.set_description(f'Ep{epoch:3d} (Train Pass)')
         t_loss, t_outputs, t_labels, t_accessions = trainer.train_one_epoch(
             train_loader
         )
@@ -364,7 +381,6 @@ def main():
         ]
 
         ### ONE PASS OVER VALID SET
-        # pbar.set_description(f'Ep{epoch:3d} (Valid Pass)')
         v_loss, v_outputs, v_labels, v_accessions = trainer.evaluate(
             valid_loader
         )
@@ -381,9 +397,11 @@ def main():
             line += f',{t_metrics[i]:.8f},{v_metrics[i]:.8f}'
         with open(history_file, 'a+') as f:
             f.write(line + '\n')
+        if v_loss < best_v_loss:
+            with open(best_performance_file, 'a+') as f:
+                f.write(line + '\n')
 
-        ### SAVE PREDICTION
-        # VALIDATION SET
+        ### SAVE PREDICTION FOR VALIDATION SET
         # order outputted values by acccession
         idx_order = np.argsort(
             [valid_order[a] for a in v_accessions.tolist()]
@@ -407,6 +425,9 @@ def main():
         if epoch%100 == 0:
             torch.save(model.state_dict(), f'model-ep{epoch}.pt')
             # wandb.save(f'model-ep{epoch}.pt')
+        if v_loss < best_v_loss:
+            best_epoch = epoch
+            torch.save(model.state_dict(), 'model-best.pt')
 
         ### LOG TO WANDB
         # performance
@@ -443,12 +464,12 @@ def main():
     plt.plot(np.linspace(30,95), np.linspace(30,95),
         '--', c='k', alpha=0.3, zorder=1)
     plt.title(f'mae: {t_metrics[2]:.2f}, rmse: {t_metrics[1]:.2f}, \n'
-              f'r2: {t_metrics[4]:.2f}, pcc: {t_metrics[0]:.2f}')
-    plt.xlabel('true Tm (Celcius)')
-    plt.ylabel('predicted Tm (Celcius)')
+              rf'$r^2$: {t_metrics[4]:.2f}, pcc: {t_metrics[0]:.2f}')
+    plt.xlabel(r'true $T_m$ (°C)')
+    plt.ylabel(r'predicted $T_m$ (°C)')
     plt.grid()
     plt.gca().set_aspect('equal')
-    plt.savefig('train-true_vs_pred.png', dpi=300, bbox_inches='tight')
+    plt.savefig('train-true_vs_pred-last.png', dpi=300, bbox_inches='tight')
     # wandb.log({
     #     'true vs pred (train)': plt
     # })
@@ -462,20 +483,124 @@ def main():
     plt.plot(np.linspace(30,95), np.linspace(30,95),
         '--', c='k', alpha=0.3, zorder=1)
     plt.title(f'mae: {v_metrics[3]:.2f}, rmse: {v_metrics[2]:.2f}, \n'
-              f'r2: {v_metrics[5]:.2f}, pcc: {v_metrics[1]:.2f}')
-    plt.xlabel('true Tm (Celcius)')
-    plt.ylabel('predicted Tm (Celcius)')
+              rf'$r^2$: {v_metrics[5]:.2f}, pcc: {v_metrics[1]:.2f}')
+    plt.xlabel(r'true $T_m$ (°C)')
+    plt.ylabel(r'predicted $T_m$ (°C)')
     plt.grid()
     plt.gca().set_aspect('equal')
-    plt.savefig('valid-true_vs_pred.png', dpi=300, bbox_inches='tight')
+    plt.savefig('valid-true_vs_pred-last.png', dpi=300, bbox_inches='tight')
     # wandb.log({
     #     'true vs pred (valid)': plt
     # })
     plt.close()
 
     wandb.log({
-        'train': { 'true_vs_pred': wandb.Image('train-true_vs_pred.png') },
-        'valid': { 'true_vs_pred': wandb.Image('valid-true_vs_pred.png') }
+        'train': { 'true_vs_pred': wandb.Image('train-true_vs_pred-last.png') },
+        'valid': { 'true_vs_pred': wandb.Image('valid-true_vs_pred-last.png') }
+    })
+
+    ####################################################################
+    # plot true vs pred on best epoch
+    ####################################################################
+
+    trainer.load_model_state_dict(
+        torch.load('model-best.pt', map_location=device)
+    )
+
+    ### ONE PASS OVER TRAIN SET (WITHOUT UPDATING MODEL PARAMETERS)
+    bt_loss, bt_outputs, bt_labels, bt_accessions = trainer.evaluate(
+        train_loader
+    )
+    # compute various metrics
+    bt_metrics = [bt_loss] + [
+        m(bt_outputs, bt_labels) for m in metrics.values()
+    ]
+
+    ### ONE PASS OVER VALID SET
+    bv_loss, bv_outputs, bv_labels, bv_accessions = trainer.evaluate(
+        valid_loader
+    )
+    # compute various metrics
+    bv_metrics = [bv_loss] + [
+        m(bv_outputs, bv_labels) for m in metrics.values()
+    ]
+
+    ### SAVE PREDICTION FOR VALIDATION SET
+    # order outputted values by acccession
+    idx_order = np.argsort(
+        [valid_order[a] for a in bv_accessions.tolist()]
+    )
+    bv_outputs_ordered = bv_outputs.detach().cpu().numpy()[idx_order]
+    line = f'{epoch},' + ','.join(bv_outputs_ordered.astype(np.str_))
+    with open(prediction_file_valid_best, 'a+') as f:
+        f.write(line + '\n')
+
+    ### SAVE PREDICTION FOR TRAINING SET
+    # order outputted values by acccession
+    idx_order = np.argsort(
+        [train_order[a] for a in bt_accessions.tolist()]
+    )
+    bt_outputs_ordered = bt_outputs.detach().cpu().numpy()[idx_order]
+    line = f'{epoch},' + ','.join(bt_outputs_ordered.astype(np.str_))
+    with open(prediction_file_train_best, 'a+') as f:
+        f.write(line + '\n')
+
+    ### LOG
+    wandb.log({
+        **{
+            'epoch-best': best_epoch
+        },
+        **{
+            f'best-train-{item_name[i]}': bt_metrics[i] for i in range(len(item_name))
+        },
+        **{
+            f'best-valid-{item_name[i]}': bv_metrics[i] for i in range(len(item_name))
+        }
+    })
+
+    ### PLOTS
+    plt.scatter(
+        bt_labels.detach().cpu().numpy(),
+        bt_outputs.detach().cpu().numpy(),
+        marker='x', s=1, alpha=0.7, zorder=3
+    )
+    plt.plot(np.linspace(30,95), np.linspace(30,95),
+        '--', c='k', alpha=0.3, zorder=1)
+    plt.title(f'mae: {bt_metrics[2]:.2f}, rmse: {bt_metrics[1]:.2f}, \n'
+              rf'$r^2$: {bt_metrics[4]:.2f}, pcc: {bt_metrics[0]:.2f}')
+    plt.xlabel(r'true $T_m$ (°C)')
+    plt.ylabel(r'predicted $T_m$ (°C)')
+    plt.grid()
+    plt.gca().set_aspect('equal')
+    plt.savefig('train-true_vs_pred-best.png', dpi=300, bbox_inches='tight')
+    # wandb.log({
+    #     'true vs pred (train)': plt
+    # })
+    plt.close()
+
+    plt.scatter(
+        bv_labels.detach().cpu().numpy(),
+        bv_outputs.detach().cpu().numpy(),
+        marker='x', s=1, alpha=0.7, zorder=3
+    )
+    plt.plot(np.linspace(30,95), np.linspace(30,95),
+        '--', c='k', alpha=0.3, zorder=1)
+    plt.title(f'mae: {bv_metrics[3]:.2f}, rmse: {bv_metrics[2]:.2f}, \n'
+              rf'$r^2$: {bv_metrics[5]:.2f}, pcc: {bv_metrics[1]:.2f}')
+    plt.xlabel(r'true $T_m$ (°C)')
+    plt.ylabel(r'predicted $T_m$ (°C)')
+    plt.grid()
+    plt.gca().set_aspect('equal')
+    plt.savefig('valid-true_vs_pred-best.png', dpi=300, bbox_inches='tight')
+    # wandb.log({
+    #     'true vs pred (valid)': plt
+    # })
+    plt.close()
+
+    ### LOG
+    wandb.log({
+        'train': { 'true_vs_pred-best': wandb.Image('train-true_vs_pred-best.png') },
+        'valid': { 'true_vs_pred-best': wandb.Image('valid-true_vs_pred-best.png') }
     })
 
 if __name__ == '__main__':
