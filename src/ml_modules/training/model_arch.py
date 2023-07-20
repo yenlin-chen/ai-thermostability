@@ -892,8 +892,8 @@ class MultiGCN(nn.Module):
 
             if self.use_fc_bfactor:
                 bfactor_graph_level_embedding = torch.cat([
-                    pyg.nn.global_mean_pool(pLDDT_embedding, batch_vector),
-                    pyg.nn.global_max_pool(pLDDT_embedding, batch_vector)
+                    pyg.nn.global_mean_pool(bfactor_embedding, batch_vector),
+                    pyg.nn.global_max_pool(bfactor_embedding, batch_vector)
                 ], dim=1)
 
         ################################################################
