@@ -89,7 +89,7 @@ def main():
         graph_dims=['pae', 'contact', 'backbone', 'codir', 'coord', 'deform'],
         node_feat_name='x',
         dim_node_feat=1024,
-        use_ogt=False,
+        use_ogt=True,
         feat2fc=False,
         use_node_pLDDT=True,
         use_node_bfactor=True,
@@ -129,8 +129,8 @@ def main():
         bfactor_dropout_rate=None,
 
         # OGT EMBEDDING SETUP
-        use_ogt_embedding=None,
-        ogt_dropout_rate=None,
+        use_ogt_embedding=True,
+        ogt_dropout_rate=0.2,
 
         # FEAT2FC SETUP
         feat_global_pool=None,
@@ -398,8 +398,11 @@ def main():
         with open(history_file, 'a+') as f:
             f.write(line + '\n')
         if v_loss < best_v_loss:
+            best_v_loss = v_loss
+            best_epoch = epoch
             with open(best_performance_file, 'a+') as f:
                 f.write(line + '\n')
+            torch.save(model.state_dict(), 'model-best.pt')
 
         ### SAVE PREDICTION FOR VALIDATION SET
         # order outputted values by acccession
@@ -425,9 +428,6 @@ def main():
         if epoch%100 == 0:
             torch.save(model.state_dict(), f'model-ep{epoch}.pt')
             # wandb.save(f'model-ep{epoch}.pt')
-        if v_loss < best_v_loss:
-            best_epoch = epoch
-            torch.save(model.state_dict(), 'model-best.pt')
 
         ### LOG TO WANDB
         # performance
@@ -531,7 +531,7 @@ def main():
         [valid_order[a] for a in bv_accessions.tolist()]
     )
     bv_outputs_ordered = bv_outputs.detach().cpu().numpy()[idx_order]
-    line = f'{epoch},' + ','.join(bv_outputs_ordered.astype(np.str_))
+    line = f'{best_epoch},' + ','.join(bv_outputs_ordered.astype(np.str_))
     with open(prediction_file_valid_best, 'a+') as f:
         f.write(line + '\n')
 
@@ -541,7 +541,7 @@ def main():
         [train_order[a] for a in bt_accessions.tolist()]
     )
     bt_outputs_ordered = bt_outputs.detach().cpu().numpy()[idx_order]
-    line = f'{epoch},' + ','.join(bt_outputs_ordered.astype(np.str_))
+    line = f'{best_epoch},' + ','.join(bt_outputs_ordered.astype(np.str_))
     with open(prediction_file_train_best, 'a+') as f:
         f.write(line + '\n')
 
