@@ -41,7 +41,7 @@ class DeepSTABp_Dataset(pyg.data.Dataset):
     '''
 
     def __init__(self, experiment=None, organism=None, cell_line=None,
-                 version='v4-higher_threshold', transform=None, device=df_device):
+                 version='v5-sigma2_cutoff12_species', transform=None, device=df_device):
 
         self.device = device
         self.version = version
