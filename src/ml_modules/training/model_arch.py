@@ -1,3 +1,8 @@
+if __name__ == '__main__':
+    from check_model_args import check_args
+else:
+    from .check_model_args import check_args
+
 import json
 import sys
 from os import path
@@ -8,7 +13,8 @@ from torchinfo import summary
 
 import torch_geometric as pyg
 
-def simple_embedding_block(neuron_ls, dropout_rate):
+def simple_embedding_block(neuron_ls, dropout_rate,
+                           activation='leakyrelu'):
 
         ## BUILD SEQUENTIAL MODEL
         mods = []
@@ -23,7 +29,10 @@ def simple_embedding_block(neuron_ls, dropout_rate):
             mods.append(nn.Dropout(p=dropout_rate))
 
             # activation
-            mods.append(nn.LeakyReLU())
+            if activation == 'leakyrelu':
+                mods.append(nn.LeakyReLU())
+            elif activation == 'selu':
+                mods.append(nn.SELU())
 
         return nn.Sequential(*mods)
 
@@ -31,16 +40,16 @@ class MultiGCN(nn.Module):
     def __init__(self,
                  # FEATURE SELECTION
                  graph_dims,
-                 node_feat_name='x',
-                 dim_node_feat=1024,
                  use_ogt=True,
-                 feat2fc=False,
+                 feat2ffc=False,
                  use_node_pLDDT=False,
                  use_node_bfactor=False,
-                 use_fc_pLDDT=False,
-                 use_fc_bfactor=False,
+                 pLDDT2ffc=False,
+                 bfactor2ffc=False,
 
                  # GRAPH CONVOLUTION SETUP
+                 node_feat_name=None,
+                 node_feat_size=None,
                  gnn_type=None,
                  gat_atten_heads=None,
                  dim_node_hidden_ls=None,
@@ -58,33 +67,35 @@ class MultiGCN(nn.Module):
                  jk_mode=None,
 
                  # GRAPH EMBEDDING SETUP
-                 use_graph_embedding=None,
+                 embed_graph_outputs=None,
                  graph_embedding_hidden_ls=None,
                  n_graph_embedding_layers=None,
                  graph_embedding_dim=None,
                  graph_embedding_dropout_rate=None,
 
                  # pLDDT EMBEDDING SETUP
-                 use_pLDDT_embedding=None,
+                 embed_pLDDT=None,
                  pLDDT_dropout_rate=None,
 
                  # bfactor EMBEDDING SETUP
-                 use_bfactor_embedding=None,
+                 embed_bfactors=None,
                  bfactor_dropout_rate=None,
 
                  # OGT EMBEDDING SETUP
-                 use_ogt_embedding=None,
+                 embed_ogt=None,
                  ogt_dropout_rate=None,
 
-                 # FEAT2FC SETUP
-                 feat_global_pool=None,
+                 # FEAT2FFC SETUP
+                 feat2ffc_feat_name=None,
+                 feat2ffc_feat_size=None,
+                 feat2ffc_global_pool=None,
 
                  # FEATURE REDUCTION SETUP
-                 use_feat_reduce=None,
-                 feat_reduce_hidden_ls=None,
-                 n_feat_reduce_layers=None,
-                 feat_reduce_dim=None,
-                 feat_reduce_dropout_rate=None,
+                 embed_feat2ffc=None,
+                 feat2ffc_embedding_hidden_ls=None,
+                 n_feat2ffc_embedding_layers=None,
+                 feat2ffc_embedding_dim=None,
+                 feat2ffc_dropout_rate=None,
 
                  # FC SETUP
                  fc_hidden_ls=None,
@@ -94,6 +105,7 @@ class MultiGCN(nn.Module):
                  fc_dropout_rate=0.5,
 
                  # OTHERS
+                 sort_graph_dims=False,
                  debug=False):
         '''Instantiate all components with trainable parameters'''
 
@@ -101,286 +113,16 @@ class MultiGCN(nn.Module):
         if debug:
             torch.autograd.set_detect_anomaly(True)
 
+        if sort_graph_dims:
+            graph_dims.sort()
+
         ################################################################
         # CHECK CONSISTENCY OF ARGUMENTS
         ################################################################
 
-        ### IN THE CASE OF NO GRAPH CONVOLUTION
-        if graph_dims == []:
-            # no graph convolution setups should be specified
-            if any([gnn_type, gat_atten_heads, dim_node_hidden_ls,
-                    n_conv_layers, dim_shape, dim_node_hidden, conv_norm,
-                    norm_graph_input, norm_graph_output, graph_global_pool,
-                    graph_dropout_rate, dropfeat_rate, dropedge_rate,
-                    dropnode_rate, jk_mode]):
-                raise ValueError(
-                    'graph convolution setups must not be specified if '
-                    '`graph_dims` is empty'
-                )
-            # another data feature must be used
-            if not use_ogt and not feat2fc:
-                raise ValueError(
-                    'At least one of the following must be specified if '
-                    '`graph_dims` is empty: `use_ogt` or `feat2fc`'
-                )
-
-            if use_graph_embedding is not None:
-                raise ValueError(
-                    '`use_graph_embedding` must not be specified if '
-                    '`graph_dims` is empty'
-                )
-
-        ### RULES FOR GRAPH CONVOLUTION SETUPS
-        else:
-
-            if gnn_type == 'gat' and not gat_atten_heads:
-                raise ValueError(
-                    '`gat_atten_heads` must be specified if '
-                    '`gnn_type` is gat'
-                )
-
-            # mutually exclusive arguments
-            if dim_node_hidden_ls is None:
-                if not all([n_conv_layers, dim_shape, dim_node_hidden]):
-                    raise ValueError(
-                        'All the following arguments must be specified if '
-                        '`dim_node_hidden_ls` is None: '
-                        '`n_conv_layers`, `dim_shape`, `dim_node_hidden`'
-                    )
-            else:
-                if any([n_conv_layers, dim_shape, dim_node_hidden]):
-                    raise ValueError(
-                        'None of the following arguments should be specified '
-                        'if `dim_node_hidden_ls` is given: '
-                        '`n_conv_layers`, `dim_shape`, `dim_node_hidden`'
-                    )
-
-            if not conv_norm:
-                if None in [norm_graph_input, norm_graph_output]:
-                    raise ValueError(
-                        'None of the following arguments should be specified '
-                        'if `conv_norm` is False: '
-                        '`norm_graph_input`, `norm_graph_output`'
-                    )
-
-            # other arguments
-            if None in [conv_norm, norm_graph_input, norm_graph_output,
-                        graph_global_pool, graph_dropout_rate, dropfeat_rate,
-                        dropedge_rate, dropnode_rate]:
-                raise ValueError(
-                    'All of the following arguments must be specified if '
-                    '`graph_dims` is not empty: '
-                    '`conv_norm`, `norm_graph_input`, `norm_graph_output`, '
-                    '`graph_global_pool`, `graph_dropout_rate`, '
-                    '`dropfeat_rate`, `dropedge_rate`, `dropnode_rate`'
-                )
-
-            if use_graph_embedding is None:
-                raise ValueError(
-                    '`use_graph_embedding` must be specified if '
-                    '`graph_dims` is not empty'
-                )
-
-        ### RULES FOR GRAPH EMBEDDING SETUP
-        if not use_graph_embedding:
-            if any([graph_embedding_hidden_ls, graph_embedding_dim,
-                    n_graph_embedding_layers, graph_embedding_dropout_rate]):
-                raise ValueError(
-                    'None of the following arguments should be specified if '
-                    '`use_graph_embedding` is False: '
-                    '`graph_embedding_hidden_ls`, `graph_embedding_dim`, '
-                    '`n_graph_embedding_layers`, `graph_embedding_dropout_rate`'
-                )
-        else:
-            # mutually exclusive arguments
-            if graph_embedding_hidden_ls is None:
-                if not all([graph_embedding_dim, n_graph_embedding_layers]):
-                    raise ValueError(
-                        'All of the following arguments must be specified if '
-                        '`graph_embedding_hidden_ls` is None: '
-                        '`graph_embedding_dim`, `n_graph_embedding_layers`'
-                    )
-            else:
-                if any([graph_embedding_dim, n_graph_embedding_layers]):
-                    raise ValueError(
-                        'None of the following arguments should be specified '
-                        'if `graph_embedding_hidden_ls` is given: '
-                        '`graph_embedding_dim`, `n_graph_embedding_layers`'
-                    )
-
-            # other arguments
-            if graph_embedding_dropout_rate is None:
-                raise ValueError(
-                    '`graph_embedding_dropout_rate` must be specified if '
-                    '`use_graph_embedding` is True'
-                )
-
-        ### RULES FOR pLDDT SETUP
-        if use_node_pLDDT or use_fc_pLDDT:
-            if use_pLDDT_embedding is None:
-                raise ValueError(
-                    '`use_pLDDT_embedding` must be specified if '
-                    '`use_node_pLDDT` or `use_fc_pLDDT` is True'
-                )
-        else:
-            if use_pLDDT_embedding is not None:
-                raise ValueError(
-                    '`use_pLDDT_embedding` must not be specified if '
-                    '`use_node_pLDDT` or `use_fc_pLDDT` is False'
-                )
-
-        if not use_pLDDT_embedding:
-            if pLDDT_dropout_rate is not None:
-                raise ValueError(
-                    '`pLDDT_dropout_rate` must not be specified if '
-                    '`use_pLDDT_embedding` is None or False'
-                )
-        else:
-            # other arguments
-            if pLDDT_dropout_rate is None:
-                raise ValueError(
-                    '`pLDDT_dropout_rate` must be specified if '
-                    '`use_pLDDT_embedding` is True'
-                )
-
-        ### RULES FOR bfactor SETUP
-        if use_node_bfactor or use_fc_bfactor:
-            if use_bfactor_embedding is None:
-                raise ValueError(
-                    '`use_bfactor_embedding` must be specified if '
-                    '`use_node_bfactor` or `use_fc_bfactor` is True'
-                )
-        else:
-            if use_bfactor_embedding is not None:
-                raise ValueError(
-                    '`use_bfactor_embedding` must not be specified if '
-                    '`use_node_bfactor` or `use_fc_bfactor` is False'
-                )
-
-        if not use_bfactor_embedding:
-            if bfactor_dropout_rate is not None:
-                raise ValueError(
-                    '`bfactor_dropout_rate` must not be specified if '
-                    '`use_bfactor_embedding` is None or False'
-                )
-        else:
-            # other arguments
-            if bfactor_dropout_rate is None:
-                raise ValueError(
-                    '`bfactor_dropout_rate` must be specified if '
-                    '`use_bfactor_embedding` is True'
-                )
-
-        ### RULES FOR OGT EMBEDDING
-        if use_ogt:
-            if use_ogt_embedding is None:
-                raise ValueError(
-                    '`use_ogt_embedding` must be specified if '
-                    '`use_ogt` is True'
-                )
-        else:
-            if use_ogt_embedding is not None:
-                raise ValueError(
-                    '`use_ogt_embedding` must not be specified if '
-                    '`use_ogt` is False'
-                )
-
-        if not use_ogt_embedding:
-            if ogt_dropout_rate is not None:
-                raise ValueError(
-                    '`ogt_dropout_rate` must not be specified if '
-                    '`use_ogt_embedding` is None or False'
-                )
-        else:
-            # other arguments
-            if ogt_dropout_rate is None:
-                raise ValueError(
-                    '`ogt_dropout_rate` must be specified if '
-                    '`use_ogt_embedding` is True'
-                )
-
-        ### RULES FOR FEATURE REDUCTION SETUP
-        if feat2fc:
-            if feat_global_pool is None:
-                raise ValueError(
-                    '`feat_global_pool` must be specified if `feat2fc` is True'
-                )
-
-            if use_feat_reduce is None:
-                raise ValueError(
-                    '`use_feat_reduce` must be specified if `feat2fc` is True'
-                )
-        else:
-            if use_feat_reduce is not None:
-                raise ValueError(
-                    '`use_feat_reduce` must not be specified if '
-                    '`feat2fc` is False'
-                )
-
-        if not use_feat_reduce:
-            if any([feat_reduce_dim, feat_reduce_hidden_ls,
-                    n_feat_reduce_layers, feat_reduce_dropout_rate]):
-                raise ValueError(
-                    f'None of the following arguments should be specified if '
-                    f'`use_feat_reduce` is None or False: '
-                    f'`feat_reduce_dim`, `feat_reduce_hidden_ls`, '
-                    f'`n_feat_reduce_layers`, `feat_reduce_dropout_rate`'
-                )
-        else:
-            # mutually exclusive arguments
-            if feat_reduce_hidden_ls is None:
-                if not all([feat_reduce_dim, n_feat_reduce_layers]):
-                    raise ValueError(
-                        'All of the following arguments must be specified if '
-                        '`feat_reduce_hidden_ls` is None: '
-                        '`feat_reduce_dim`, `n_feat_reduce_layers`'
-                    )
-            else:
-                if any([feat_reduce_dim, n_feat_reduce_layers]):
-                    raise ValueError(
-                        'None of the following arguments should be specified if '
-                        '`feat_reduce_hidden_ls` is not None: '
-                        '`feat_reduce_dim`, `n_feat_reduce_layers`'
-                    )
-
-            # other arguments
-            if feat_reduce_dropout_rate is None:
-                raise ValueError(
-                    '`feat_reduce_dropout_rate` must be specified if '
-                    '`use_feat_reduce` is True'
-                )
-
-        ### RUELS FOR FINAL FC
-
-        # mutually exclusive arguments
-        if fc_hidden_ls is None:
-            if not n_fc_hidden_layers:
-                raise ValueError(
-                    'All of the following arguments must be specified if '
-                    '`fc_hidden_ls` is None: '
-                    '`n_fc_hidden_layers`'
-                )
-
-        else:
-            if n_fc_hidden_layers:
-                raise ValueError(
-                    'None of the following arguments should be specified if '
-                    '`fc_hidden_ls` is not None: '
-                    '`n_fc_hidden_layers`'
-                )
-
-        if not fc_norm:
-            if norm_fc_input is not None:
-                raise ValueError(
-                    '`norm_fc_input` must not be specified if '
-                    '`fc_norm` is False'
-                )
-
-        # other arguments
-        if fc_dropout_rate is None:
-            raise ValueError(
-                '`fc_dropout_rate` must be specified'
-            )
+        self.all_args = locals()
+        del self.all_args['self'], self.all_args['__class__']
+        check_args(**self.all_args)
 
         ################################################################
         # SAVE A COPY OF ARGUMENTS PASSED
@@ -392,21 +134,22 @@ class MultiGCN(nn.Module):
 
         # arguments required in forward()
         self.graph_dims = graph_dims
-        self.node_feat_name = node_feat_name
-        self.feat2fc = feat2fc
+        self.feat2ffc = feat2ffc
         self.use_ogt = use_ogt
         self.dropedge_rate = dropedge_rate
         self.dropnode_rate = dropnode_rate
         self.use_node_pLDDT=use_node_pLDDT
         self.use_node_bfactor=use_node_bfactor
-        self.use_fc_pLDDT = use_fc_pLDDT
-        self.use_fc_bfactor = use_fc_bfactor
+        self.pLDDT2ffc = pLDDT2ffc
+        self.bfactor2ffc = bfactor2ffc
+        self.node_feat_name = node_feat_name
+        self.feat2ffc_feat_name = feat2ffc_feat_name
 
         # arguments required in reset_parameters()
         self.n_conv_layers = n_conv_layers
         self.graph_embedding_dim = graph_embedding_dim
-        self.feat_reduce_dim = feat_reduce_dim
-        self.use_ogt_embedding = use_ogt_embedding
+        self.feat2ffc_embedding_dim = feat2ffc_embedding_dim
+        self.embed_ogt = embed_ogt
 
         # internal parameters
         self.training = True
@@ -431,17 +174,17 @@ class MultiGCN(nn.Module):
                 f'not {graph_global_pool}'
             )
 
-        if feat2fc:
-            if feat_global_pool == 'mean':
+        if feat2ffc:
+            if feat2ffc_global_pool == 'mean':
                 self.feat_pool = pyg.nn.global_mean_pool
-            elif feat_global_pool == 'max':
+            elif feat2ffc_global_pool == 'max':
                 self.feat_pool = pyg.nn.global_max_pool
-            elif feat_global_pool == 'sum':
+            elif feat2ffc_global_pool == 'sum':
                 self.feat_pool = pyg.nn.global_add_pool
             else:
                 raise ValueError(
-                    f'`feat_global_pool` must be "mean", "max", or "sum", '
-                    f'not {feat_global_pool}'
+                    f'`feat2ffc_global_pool` must be "mean", "max", or "sum", '
+                    f'not {feat2ffc_global_pool}'
                 )
 
         ################################################################
@@ -455,8 +198,11 @@ class MultiGCN(nn.Module):
         # determine whether bfactor and pLDDT should be included
         n_add_feat = 0
 
+        # keep track of the number of features for graph conv layers
+        dim_graph_input = 0 if node_feat_size is None else node_feat_size
+
         ### pLDDT
-        if use_pLDDT_embedding:
+        if embed_pLDDT:
 
             pLDDT_neuron_ls = [1, 20, 10]
             self.pLDDT_block = simple_embedding_block(
@@ -464,16 +210,16 @@ class MultiGCN(nn.Module):
             )
 
             n_add_feat += 10 if use_node_pLDDT else 0
-            dim_fc_input += 20 if use_fc_pLDDT else 0
+            dim_fc_input += 20 if pLDDT2ffc else 0
 
-        elif use_pLDDT_embedding == False:
+        elif embed_pLDDT == False:
             self.pLDDT_block = nn.Identity()
 
             n_add_feat += 1 if use_node_pLDDT else 0
-            dim_fc_input += 2 if use_fc_pLDDT else 0
+            dim_fc_input += 2 if pLDDT2ffc else 0
 
         ### BFACTOR
-        if use_bfactor_embedding:
+        if embed_bfactors:
 
             bfactor_neuron_ls = [1, 20, 10]
             self.bfactor_block = simple_embedding_block(
@@ -481,15 +227,15 @@ class MultiGCN(nn.Module):
             )
 
             n_add_feat += 10 if use_node_bfactor else 0
-            dim_fc_input += 20 if use_fc_bfactor else 0
+            dim_fc_input += 20 if bfactor2ffc else 0
 
-        elif use_bfactor_embedding == False:
+        elif embed_bfactors == False:
             self.bfactor_block = nn.Identity()
 
             n_add_feat += 1 if use_node_bfactor else 0
-            dim_fc_input += 2 if use_fc_bfactor else 0
+            dim_fc_input += 2 if bfactor2ffc else 0
 
-        dim_graph_input = dim_node_feat + n_add_feat
+        dim_graph_input += n_add_feat
 
         ################################################################
         # INSTANTIATE CONVOLUTIONAL LAYERS
@@ -510,17 +256,21 @@ class MultiGCN(nn.Module):
                     int(dim_graph_input * factor**i)
                     for i in range(1,n_conv_layers)
                 ] + [dim_node_hidden]
+            elif n_conv_layers == 1:
+                dim_node_hidden_ls = [ dim_node_hidden ]
             else:
                 raise ValueError(
                     f'`dim_shape` must be "constant", "linear", or "exp", '
                     f'not {dim_shape}'
                 )
 
-        # first dimension:  ProteinBERT encoding (1024) + b-factor and/or pLDDT
         if dim_node_hidden_ls is None:
-            dim_node_hidden_ls = [] # NoneType cannot be concatented
+            dim_node_hidden_ls = [] # NoneType cannot be concatenated
         dim_node_ls = [ dim_graph_input ] + dim_node_hidden_ls
 
+        self.dim_node_ls = dim_node_ls
+
+        # TODO: change ModuleList to ModuleDict
         self.conv_block_list = nn.ModuleList([]) if graph_dims != [] else None
         for _ in range(len(graph_dims)):
 
@@ -717,7 +467,7 @@ class MultiGCN(nn.Module):
         ################################################################
 
         if use_ogt:
-            if use_ogt_embedding:
+            if embed_ogt:
                 ogt_neuron_ls = [1,20,10]
 
                 ## BUILD SEQUENTIAL MODEL
@@ -746,23 +496,23 @@ class MultiGCN(nn.Module):
                 dim_fc_input += 1
 
         ################################################################
-        # NODE FEATURE REDUCTION
+        # INSTANTIATE FEAT2FFC EMBEDDING LAYERS
         ################################################################
 
-        if feat2fc:
-            if use_feat_reduce:
+        if feat2ffc:
+            if embed_feat2ffc:
                 # features will be piped after dimensionality reduction
 
-                if feat_reduce_hidden_ls is None:
-                    dim_sum = dim_node_feat + feat_reduce_dim
-                    factor = dim_sum // n_feat_reduce_layers
-                    feat_reduce_hidden_ls = [
-                        factor*i for i in range(1,n_feat_reduce_layers)[::-1]
+                if feat2ffc_embedding_hidden_ls is None:
+                    dim_sum = feat2ffc_feat_size + feat2ffc_embedding_dim
+                    factor = dim_sum // n_feat2ffc_embedding_layers
+                    feat2ffc_embedding_hidden_ls = [
+                        factor*i for i in range(1,n_feat2ffc_embedding_layers)[::-1]
                     ]
 
-                feat_reduce_neuron_ls = [dim_node_feat]
-                feat_reduce_neuron_ls += feat_reduce_hidden_ls
-                feat_reduce_neuron_ls.append(feat_reduce_dim)
+                feat_reduce_neuron_ls = [feat2ffc_feat_size]
+                feat_reduce_neuron_ls += feat2ffc_embedding_hidden_ls
+                feat_reduce_neuron_ls.append(feat2ffc_embedding_dim)
 
                 ## BUILD SEQUENTIAL MODEL
                 feat_reduce_block = []
@@ -775,7 +525,7 @@ class MultiGCN(nn.Module):
                     feat_reduce_block.append(nn.Linear(dim_input, dim_output))
 
                     # dropout
-                    feat_reduce_block.append(nn.Dropout(p=feat_reduce_dropout_rate))
+                    feat_reduce_block.append(nn.Dropout(p=feat2ffc_dropout_rate))
 
                     # activation
                     feat_reduce_block.append(nn.LeakyReLU())
@@ -786,7 +536,7 @@ class MultiGCN(nn.Module):
                 self.feat_reduce_block = nn.Sequential(*feat_reduce_block)
 
                 # sum size of embeddings
-                dim_fc_input += feat_reduce_dim
+                dim_fc_input += feat2ffc_embedding_dim
 
             else:
                 # features will be piped without dimensionality reduction
@@ -794,7 +544,7 @@ class MultiGCN(nn.Module):
                 self.feat_reduce_block = nn.Identity()
 
                 # sum size of embeddings
-                dim_fc_input += dim_node_feat
+                dim_fc_input += feat2ffc_feat_size
 
         ################################################################
         # INSTANTIATE FULLY CONNECTED LAYERS
@@ -848,14 +598,21 @@ class MultiGCN(nn.Module):
         bfactor = data_batch['residue'].bfactor.float()[:, None]
         pLDDT = data_batch['residue'].pLDDT.float()[:, None]
         ogt = data_batch.ogt.float()[:,None]
-        x0 = getattr(data_batch['residue'], self.node_feat_name).float()
         # res1hot = data_batch['residue'].res1hot.float()
 
         # batch metadata
         batch_vector = data_batch['residue'].batch.long()
 
         # gather all inputs for GNN
-        graph_input = [x0]
+        if self.graph_dims != []:
+            node_feat = getattr(data_batch['residue'], self.node_feat_name).float()
+            graph_input = [node_feat]
+
+        # feat2ffc
+        if self.feat2ffc:
+            feat2ffc_feat = getattr(
+                data_batch['residue'], self.feat2ffc_feat_name
+            ).float()
 
         # pipe node features to linear layers
         node_embeddings = []
@@ -866,13 +623,13 @@ class MultiGCN(nn.Module):
 
         pLDDT_graph_level_embedding = None
 
-        if self.use_node_pLDDT or self.use_fc_pLDDT:
+        if self.use_node_pLDDT or self.pLDDT2ffc:
             pLDDT_embedding = self.pLDDT_block(pLDDT)
 
             if self.use_node_pLDDT:
                 graph_input.append(pLDDT_embedding)
 
-            if self.use_fc_pLDDT:
+            if self.pLDDT2ffc:
                 pLDDT_graph_level_embedding = torch.cat([
                     pyg.nn.global_mean_pool(pLDDT_embedding, batch_vector),
                     pyg.nn.global_max_pool(pLDDT_embedding, batch_vector)
@@ -884,13 +641,13 @@ class MultiGCN(nn.Module):
 
         bfactor_graph_level_embedding = None
 
-        if self.use_node_bfactor or self.use_fc_bfactor:
+        if self.use_node_bfactor or self.bfactor2ffc:
             bfactor_embedding = self.bfactor_block(bfactor)
 
             if self.use_node_bfactor:
                 graph_input.append(bfactor_embedding)
 
-            if self.use_fc_bfactor:
+            if self.bfactor2ffc:
                 bfactor_graph_level_embedding = torch.cat([
                     pyg.nn.global_mean_pool(bfactor_embedding, batch_vector),
                     pyg.nn.global_max_pool(bfactor_embedding, batch_vector)
@@ -900,7 +657,8 @@ class MultiGCN(nn.Module):
         # GRAPH CONVOLUTIONS
         ################################################################
 
-        graph_input = torch.cat(graph_input, dim=1)
+        if self.graph_dims != []:
+            graph_input = torch.cat(graph_input, dim=1)
 
         # pass each graph dimension through its own conv block
         for dim_idx, dim in enumerate(self.graph_dims):
@@ -968,8 +726,8 @@ class MultiGCN(nn.Module):
         ################################################################
 
         # reduce dimensionality of node features (ProteinBERT / residue OHE)
-        if self.feat2fc:
-            feat_embedding = self.feat_pool(x0, batch_vector)
+        if self.feat2ffc:
+            feat_embedding = self.feat_pool(feat2ffc_feat, batch_vector)
             feat_embedding = self.feat_reduce_block(feat_embedding)
         else:
             feat_embedding = None
@@ -1035,7 +793,7 @@ class MultiGCN(nn.Module):
                 if isinstance(layer, nn.BatchNorm1d):
                     layer.reset_parameters()
 
-        if self.feat_reduce_dim:
+        if self.feat2ffc_embedding_dim:
             # (re)initialize feature reducing parameters
             for layer in self.feat_reduce_block.children():
                 if isinstance(layer, nn.Linear):
@@ -1046,7 +804,7 @@ class MultiGCN(nn.Module):
                 if isinstance(layer, nn.BatchNorm1d):
                     layer.reset_parameters()
 
-        if self.use_ogt_embedding:
+        if self.embed_ogt:
             # (re)initialize ogt parameters
             for layer in self.ogt_block.children():
                 if isinstance(layer, nn.Linear):
@@ -1111,6 +869,25 @@ class DeepSTABp(nn.Module):
         ################################################################
 
         self.feat_pool = pyg.nn.global_mean_pool
+        dim_fc_input = 1024
+
+        ################################################################
+        # INSTANTIATE EXPERIMENT-TYPE BLOCK
+        ################################################################
+
+        fc_neuron_ls = [1,20,10]
+
+        self.lysate_block = simple_embedding_block(
+            fc_neuron_ls, dropout_rate=0.2,
+            activation='selu'
+        )
+        dim_fc_input += 10
+
+        self.cell_block = simple_embedding_block(
+            fc_neuron_ls, dropout_rate=0.2,
+            activation='selu'
+        )
+        dim_fc_input += 10
 
         ################################################################
         # INSTANTIATE OGT BLOCK
@@ -1119,26 +896,12 @@ class DeepSTABp(nn.Module):
         if use_ogt:
             fc_neuron_ls = [1,20,10]
 
-            ogt_block = []
-            for layer_idx in range(len(fc_neuron_ls) - 1):
-                dim_input = fc_neuron_ls[layer_idx]
-                dim_output = fc_neuron_ls[layer_idx + 1]
+            self.ogt_block = simple_embedding_block(
+                fc_neuron_ls, dropout_rate=0.2,
+                activation='selu'
+            )
 
-                # linear connection
-                ogt_block.append(nn.Linear(dim_input, dim_output))
-
-                # activation
-                ogt_block.append(nn.SELU())
-
-                # dropout
-                ogt_block.append(nn.Dropout(p=0.2))
-
-            self.ogt_block = nn.Sequential(*ogt_block)
-
-            dim_fc_input = 1034
-
-        else:
-            dim_fc_input = 1024
+            dim_fc_input += 10
 
         ################################################################
         # INSTANTIATE FULLY CONNECTED LAYERS
@@ -1173,19 +936,35 @@ class DeepSTABp(nn.Module):
         # INPUT PREPARATION
         ################################################################
         ogt = data_batch.ogt[:,None].float()
-        x0 = data_batch['residue'].x.float()
+        node_feat = data_batch['residue'].x.float()
+        batch_vector = data_batch['residue'].batch.long()
+
+        cell = torch.zeros_like(ogt)
+        lysate = torch.ones_like(ogt)
+
+        cell_embedding = self.cell_block(cell)
+        lysate_embedding = self.lysate_block(lysate)
 
         ################################################################
         # FC INPUT PREPARATION
         ################################################################
 
-        feat_embedding = self.feat_pool(x0, data_batch['residue'].batch)
+        feat_embedding = self.feat_pool(node_feat, batch_vector)
 
         if self.use_ogt:
             ogt_embedding = self.ogt_block(ogt)
-            fc_input = torch.cat([feat_embedding, ogt_embedding], dim=1)
+            fc_input = torch.cat([
+                cell_embedding,
+                lysate_embedding,
+                feat_embedding,
+                ogt_embedding,
+            ], dim=1)
         else:
-            fc_input = feat_embedding
+            fc_input = torch.cat([
+                cell_embedding,
+                lysate_embedding,
+                feat_embedding,
+            ], dim=1)
 
         ################################################################
         # FC LAYERS
@@ -1243,72 +1022,3 @@ class DeepSTABp(nn.Module):
 
         # call parent function
         return super().train(mode)
-
-if __name__ == '__main__':
-
-    import torchinfo
-
-    # model = DeepSTABp()
-
-    model = MultiGCN(
-        # FEATURE SELECTION
-        graph_dims=['pae', 'contact', 'backbone', 'codir', 'coord', 'deform'],
-        node_feat_name='x',
-        dim_node_feat=1024,
-        use_ogt=True,
-        disable_pLDDT=False,
-        disable_bfactor=False,
-
-        # GRAPH CONVOLUTION SETUP
-        gnn_type='gcn',
-        gat_atten_heads=0,
-        dim_node_hidden_ls=None,
-        n_conv_layers=1,
-        dim_shape='constant',
-        dim_node_hidden=32,
-        conv_norm=True,
-        graph_global_pool='mean',
-        graph_dropout_rate=0,
-        dropfeat_rate=0,
-        dropedge_rate=0,
-        dropnode_rate=0,
-        jk_mode=None,
-
-        # GRAPH EMBEDDING SETUP
-        graph_embedding_dim=None,
-        graph_embedding_hidden_ls=None,
-        n_graph_embedding_layers=0,
-        graph_embedding_dropout_rate=0,
-
-        # pLDDT EMBEDDING SETUP
-        use_pLDDT_embedding=False,
-        pLDDT_dropout_rate=0,
-
-        # bfactor EMBEDDING SETUP
-        use_bfactor_embedding=False,
-        bfactor_dropout_rate=0,
-
-        # OGT EMBEDDING SETUP
-        use_ogt_embedding=False,
-        ogt_dropout_rate=0.2,
-
-        # FEATURE REDUCTION SETUP
-        feat_reduce_dim=0,
-        feat_reduce_hidden_ls=None,
-        n_feat_reduce_layers=2,
-        feat_reduce_dropout_rate=0,
-        feat_global_pool='mean',
-
-        # FC SETUP
-        fc_hidden_ls=[128, 64],
-        n_fc_hidden_layers=None,
-        fc_norm=True,
-        fc_dropout_rate=0.5,
-
-        # OTHERS
-        debug=False
-    )
-
-    torchinfo.summary(model)
-    print()
-    print(model)
