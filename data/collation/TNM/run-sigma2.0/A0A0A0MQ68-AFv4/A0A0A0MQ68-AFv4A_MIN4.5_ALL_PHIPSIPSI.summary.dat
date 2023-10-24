@@ -1,0 +1,36 @@
+Para: Psi=1  Omega=0 Sidechain=0 Min_int=1  REF=ALL E_MIN=1e-08 COLL_THR=10 K_O=0 K_F=0.5 K_P=0.5 K_C=0 K_BA=0.5 K_BL=1 CONT=MIN  thr=4.50 EXPO=6.0  KAPPA=200.0 KAPPA=200.0
+protein               A0A0A0MQ68-AFv4A
+Nchain                1
+Nres                  447
+Mass                  46022
+Degrees of freedom    844
+Rigid Deg of freed    0
+Side chain            0
+Skipped main chain    48
+Discarded modes coll. 2
+Discarded modes freq. 0
+Discarded modes outl. 0
+Disordered gaps       0
+Native interactions   2051
+Force constant at 3.5A 200
+Estimated surface     3.312
+Contact energy        -89.5
+#
+# Harmonic approximation:
+Recp.Coll(therm)      3
+Ave_collectivity_NM   0.107
+kT/h=                2.468
+Quantum modes:        738 / 844
+Entropy per res       0.8761
+Free energy per res   3.06
+#B-factors, harmonic analysis
+r(B_pred,B_exp)       0.832
+Force constant factor 1.000
+RMSD_crystal          1.855 (all)
+RMSD_crystal          -nan (internal)
+RMSD_Norm.Modes       4.915
+Internal_fluct        -0.027
+Translation_fluct     0.923
+Rotation_fluct        0.104
+Torsional_RMSD_Harm   0.000
+#

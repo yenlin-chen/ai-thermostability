@@ -5,7 +5,7 @@
 #The input pdb must be specified in the records "PDB1" and "CH1"
 #Chain A: CH1= A Default: First chain in PDB file CH1= ALL : all chains, e.g.:
 # 6q8f 6s1a 7asv
-PDB1=/mnt/d/Dropbox/projects/ai-thermostability/code/data/external/AlphaFoldDB/pdb/A0A023PXQ4-AFv4.pdb
+PDB1=/mnt/d/Dropbox/projects/ai-thermostability/code/data/external/AlphaFoldDB/pdb/A0A0A0MQ68-AFv4.pdb
 CH1=A
 #If the conformation change between two proteins is required, it must be
 #specified with the records "PDB2" and "CH2", e.g.
@@ -97,7 +97,7 @@ ALLOSTERY=1            ! Compute dynamical couplings?
 PROF_TYPE=C            ! A=average coupling P=Principal eigenvector of coup.
 #                      ! C=effective connectivity of coup.
 ALL_PAIRS=1            ! Print couplings for all pairs? (1=YES)
-SIGMA=2.0              ! if(ALL_PAIRS==0), couplings are printed if
+SIGMA=2.0 ! if(ALL_PAIRS==0), couplings are printed if
 #                      ! c_ij >/< <c>+/- SIGMA*st.dev.
 PRINT_DEF_COUPLING=1   ! Print deformation couplings
 # Deformation coupling A_ij is the deformations produced on site j by a
